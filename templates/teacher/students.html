@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>👥 My Students — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Teacher Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">👨‍🏫 Teacher</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/teacher/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/teacher/sessions"><span class="nav-icon">▶</span>Start Session</a>
+  <a class="nav-link " href="/teacher/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link active" href="/teacher/students"><span class="nav-icon">👥</span>My Students</a>
+  <div class="nav-sec">Requests</div>
+  <a class="nav-link " href="/teacher/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/teacher/corrections"><span class="nav-icon">✏</span>Corrections</a>
+  <a class="nav-link " href="/teacher/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/teacher/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">Account</div>
+  <a class="nav-link " href="/teacher/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">👥 My Students</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let students=[];
+async function boot(){
+  try{
+    students=await api.get('/api/students');
+    if(!Array.isArray(students)) throw new Error(students.error||'Unexpected response');
+    document.getElementById('topExtra').innerHTML='<input id="q" placeholder="🔍 Search…" style="width:180px" oninput="render()"/><button class="btn btn-primary btn-sm" onclick="openModal(&#39;addM&#39;)">➕ Add Student</button>';
+    render();
+  }catch(e){
+    document.getElementById('mainArea').innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><p>Couldn't load students. Please refresh the page.</p></div>`;
+    toast('Failed to load students','err');
+  }
+}
+function render(){
+  const q=(document.getElementById('q')?.value||'').toLowerCase();
+  const list=students.filter(s=>s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q)||(s.rollNo||'').toLowerCase().includes(q));
+  document.getElementById('mainArea').innerHTML='<div class="card p0 ovh"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Roll</th><th>Dept</th><th>Y</th><th>Face</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+list.map(s=>`<tr>
+    <td><div class="flex gap-8"><div style="width:32px;height:32px;border-radius:50%;overflow:hidden;border:2px solid var(--bdr);flex-shrink:0;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--acc);font-size:12px">
+      ${s.photo?`<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover"/>`:s.name[0]}</div>
+      <div><div style="font-weight:600">${esc(s.name)}</div><div style="font-size:10px;color:var(--mut)">${esc(s.email)}</div></div></div></td>
+    <td style="font-family:monospace">${esc(s.rollNo||'—')}</td><td>${esc(s.department||'—')}</td><td>Y${s.year}</td>
+    <td>${s.faceRegistered?'<span class="badge b-approved">✓</span>':'<span class="badge b-absent">✗</span>'}</td>
+    <td>${badge(s.status)}</td>
+    <td><div class="flex gap-5">
+      <button class="btn btn-outline btn-xs" onclick="viewP('${s.id}')">View</button>
+      <button class="btn btn-ghost btn-xs" onclick="editS('${s.id}')">Edit</button>
+      <button class="btn btn-danger btn-xs" onclick="delS('${s.id}','${esc(s.name)}')">Del</button>
+    </div></td></tr>`).join('')+'</tbody></table></div><div class="tbl-foot">'+list.length+' of '+students.length+' students</div></div>';
+}
+async function viewP(id){
+  const [summ,leaves]=await Promise.all([api.get('/api/attendance/summary/'+id),api.get('/api/leaves?studentId='+id)]);
+  const s=students.find(x=>x.id===id);
+  document.getElementById('mTitle2').textContent=(s?s.name:id)+' — Full Profile';
+  document.getElementById('mBody2').innerHTML=`
+    <div class="flex gap-12 mb-14" style="padding:14px;background:var(--sur2);border-radius:10px">
+      <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid var(--acc);flex-shrink:0;background:var(--sur3);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--acc)">
+        ${s&&s.photo?`<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover"/>`:s?s.name[0]:'?'}</div>
+      <div><div style="font-weight:800;font-size:16px">${esc(s?s.name:id)}</div>
+        <div style="font-size:12px;color:var(--mut)">${esc(s?s.rollNo||'—':'')} · ${esc(s?s.department||'—':'')} · Y${s?s.year:''}</div>
+        <div style="font-size:11px;color:var(--dim)">${esc(s?s.email:'')}</div></div>
+    </div>
+    <h3 style="font-size:13px;margin-bottom:10px">📚 Subject-wise Attendance</h3>
+    ${summ.length?summ.map(sub=>`<div class="msg-box mb-8 flex gap-10">
+      <div style="flex:1"><div style="font-weight:600">${esc(sub.subjectName)}</div>
+        <div class="flex gap-6 mt-4">${prog(sub.percentage,pctColor(sub.percentage),5)}
+          <span style="font-size:11px;font-family:monospace;color:${pctColor(sub.percentage)}">${sub.percentage}%</span></div></div>
+      <div class="flex gap-8"><div style="text-align:center"><div style="font-weight:800;color:var(--ok)">${sub.present}</div><div style="font-size:9px;color:var(--mut)">P</div></div>
+        <div style="text-align:center"><div style="font-weight:800;color:var(--err)">${sub.absent}</div><div style="font-size:9px;color:var(--mut)">A</div></div>
+        ${badge(sub.status)}</div></div>`).join(''):'<div style="color:var(--mut);font-size:12px">No records</div>'}
+    <h3 style="font-size:13px;margin:14px 0 10px">🏖 Leave History</h3>
+    ${leaves.length?leaves.map(l=>`<div class="msg-box mb-6"><div class="flex gap-8"><div style="flex:1"><div style="font-size:12px">${esc(l.reason)}</div><div style="font-size:10px;color:var(--mut)">${l.fromDate}→${l.toDate} · ${l.subjectName||'General'}</div></div>${badge(l.status)}</div></div>`).join(''):'<div style="color:var(--mut);font-size:12px">No leave requests</div>'}`;
+  openModal('m2');
+}
+function editS(id){
+  const s=students.find(x=>x.id===id);if(!s)return;
+  document.getElementById('mTitle').textContent='✏ Edit Student';
+  document.getElementById('mBody').innerHTML=`<input type="hidden" id="eId" value="${s.id}"/>
+    <div class="form-group"><label>Name</label><input id="eN" value="${esc(s.name)}"/></div>
+    <div class="form-group"><label>Email</label><input id="eE" value="${esc(s.email)}"/></div>
+    <div class="form-group"><label>Phone</label><input id="ePh" value="${esc(s.phone||'')}"/></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Year</label><select id="eY">${[1,2,3,4].map(n=>`<option value="${n}" ${s.year==n?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Status</label><select id="eSt"><option ${s.status==='Active'?'selected':''}>Active</option><option ${s.status==='Inactive'?'selected':''}>Inactive</option></select></div>
+    </div>
+    <button class="btn btn-primary w100 mt-8" onclick="saveEdit()">💾 Save</button>`;
+  openModal('m1');
+}
+async function saveEdit(){
+  const id=document.getElementById('eId').value;
+  const r=await api.put('/api/students/'+id,{name:document.getElementById('eN').value,email:document.getElementById('eE').value,phone:document.getElementById('ePh').value,year:parseInt(document.getElementById('eY').value),status:document.getElementById('eSt').value});
+  if(r.ok){students=await api.get('/api/students');render();closeModal('m1');toast('Updated','ok');}else toast('Failed','err');
+}
+async function delS(id,name){
+  const reason=prompt('Delete '+name+'? Their records will be archived.\nReason:');
+  if(reason===null)return;
+  const r=await api.del('/api/students/'+id,{reason});
+  if(r.ok){students=await api.get('/api/students');render();toast('Archived & deleted','ok');}
+}
+boot();
+
+</script></body></html>

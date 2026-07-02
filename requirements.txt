@@ -1,0 +1,11 @@
+flask
+flask-sqlalchemy
+flask-migrate
+flask-cors
+psycopg2-binary
+face-recognition
+pillow
+numpy
+python-dotenv
+reportlab
+werkzeug

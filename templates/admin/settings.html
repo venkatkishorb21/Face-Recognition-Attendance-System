@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>⚙ System Settings — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link " href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link " href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link " href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link active" href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">⚙ System Settings</div><div id="topbarExtra" class="ml-auto flex gap-8"></div></div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div id="toast" class="toast"></div>
+<div class="modal-bg" id="modal1" onclick="bgClose(event,'modal1')"><div class="modal"><div class="modal-hdr"><h3 id="modalTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modal1')">✕</button></div><div id="modalBody"></div></div></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const PAGE='settings';
+
+async function boot(){
+  let s={};
+  try{s=await api.get('/api/admin/system-settings');}catch(e){}
+  let me={};
+  try{me=await api.get('/api/me');}catch(e){}
+  $('mainArea').innerHTML=`<div style="max-width:560px">
+    <div class="card mb-14">
+      <div class="card-title">🏛 Institution</div>
+      <div class="form-group"><label>Institution Name</label><input id="sInst" value="${esc(s.institutionName||'')}"/></div>
+      <div class="form-group"><label>Academic Session</label><input id="sSess" value="${esc(s.session||'')}"/></div>
+    </div>
+    <div class="card mb-14">
+      <div class="card-title">👁 Face Recognition</div>
+      <div class="form-group"><label>Confidence Threshold: <span id="confLbl">${s.faceThreshold||55}</span>%</label>
+        <input type="range" id="sConf" min="40" max="99" value="${s.faceThreshold||55}" class="rng" oninput="$('confLbl').textContent=this.value"/></div>
+      <div class="form-group"><label>Late Window: <span id="lateLbl">${s.lateWindow||15}</span> min</label>
+        <input type="range" id="sLate" min="0" max="30" value="${s.lateWindow||15}" class="rng" oninput="$('lateLbl').textContent=this.value"/></div>
+    </div>
+    <div class="card mb-14">
+      <div class="card-title">📅 Session Settings</div>
+      <div class="form-group"><label>Default Class Duration: <span id="durLbl">${s.classDuration||60}</span> min</label>
+        <input type="range" id="sDur" min="30" max="180" value="${s.classDuration||60}" class="rng" oninput="$('durLbl').textContent=this.value"/></div>
+      <div class="form-group"><label>Absent Threshold: <span id="absLbl">${s.absentThreshold||75}</span>%</label>
+        <input type="range" id="sAbs" min="50" max="90" value="${s.absentThreshold||75}" class="rng" oninput="$('absLbl').textContent=this.value"/></div>
+      <div class="form-group">
+        <label>Auto-mark Absent when session closes</label>
+        <select id="sAutoAbs"><option value="true" ${s.autoAbsent!==false?'selected':''}>Yes — auto-mark absent</option><option value="false" ${s.autoAbsent===false?'selected':''}>No — manual only</option></select>
+      </div>
+      <div class="form-group">
+        <label>Require GPS Location</label>
+        <select id="sLoc"><option value="true" ${s.locationRequired!==false?'selected':''}>Yes — GPS required</option><option value="false" ${s.locationRequired===false?'selected':''}>No — location optional</option></select>
+      </div>
+    </div>
+    <button class="btn btn-primary w100 mb-14" onclick="saveSettings()">💾 Save Settings</button>
+
+    <div class="card">
+      <div class="card-title">🔐 Admin Login Credentials</div>
+      <p style="font-size:11px;color:var(--mut);margin-bottom:12px">Change the email and/or password used to log in to this Admin account. The new credentials are saved to the database and take effect immediately for future logins.</p>
+      <div class="form-group"><label>Admin Name</label><input id="cName" value="${esc(me.name||'')}"/></div>
+      <div class="form-group"><label>Login Email</label><input id="cEmail" type="email" value="${esc(me.email||'')}"/></div>
+      <div class="form-group"><label>New Password (leave blank to keep current)</label><input id="cNewPass" type="password" placeholder="New password"/></div>
+      <div class="form-group"><label>Current Password *</label><input id="cCurPass" type="password" placeholder="Required to confirm any change"/></div>
+      <button class="btn btn-primary w100" onclick="saveCredentials()">🔑 Update Credentials</button>
+    </div>
+  </div>`;
+}
+async function saveCredentials(){
+  const curPass=$('cCurPass').value;
+  if(!curPass){toast('Enter your current password to confirm','err');return;}
+  const res=await api.put('/api/admin/profile',{
+    name:$('cName').value, email:$('cEmail').value,
+    newPassword:$('cNewPass').value||undefined,
+    currentPassword:curPass});
+  if(res.ok){
+    toast('Credentials updated successfully','ok');
+    $('cCurPass').value=''; $('cNewPass').value='';
+  } else toast(res.error||'Failed to update credentials','err');
+}
+async function saveSettings(){
+  const res=await api.put('/api/admin/system-settings',{
+    institutionName:$('sInst').value,session:$('sSess').value,
+    faceThreshold:parseInt($('sConf').value),lateWindow:parseInt($('sLate').value),
+    classDuration:parseInt($('sDur').value),absentThreshold:parseInt($('sAbs').value),
+    autoAbsent:$('sAutoAbs').value==='true',locationRequired:$('sLoc').value==='true'});
+  if(res.ok)toast('Settings saved','ok'); else toast('Failed','err');
+}
+boot();
+
+</script></body></html>

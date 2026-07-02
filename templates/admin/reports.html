@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📊 Reports — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link " href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link " href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link " href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link active" href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link " href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📊 Reports</div><div id="topbarExtra" class="ml-auto flex gap-8"></div></div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div id="toast" class="toast"></div>
+<div class="modal-bg" id="modal1" onclick="bgClose(event,'modal1')"><div class="modal"><div class="modal-hdr"><h3 id="modalTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modal1')">✕</button></div><div id="modalBody"></div></div></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const PAGE='reports';
+
+async function boot(){
+  const subs=await api.get('/api/subjects');
+  $('topbarExtra').innerHTML='<a href="/api/admin/export/full" class="btn btn-ghost btn-sm">⬇ Export All CSV</a>';
+  $('mainArea').innerHTML=`<div class="sub-grid">${subs.map(s=>`<div class="sub-card" style="cursor:default">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">${esc(s.name)}</div>
+    <div style="font-size:11px;color:var(--mut);margin-bottom:12px">${esc(s.code)} · ${esc(s.teacherName)}</div>
+    <div class="flex gap-8">
+      <a href="/api/reports/pdf/${s.id}" target="_blank" class="btn btn-danger btn-sm flex1">📄 PDF</a>
+      <a href="/api/reports/csv/${s.id}" target="_blank" class="btn btn-ghost btn-sm flex1">⬇ CSV</a>
+    </div>
+  </div>`).join('')}</div>`;
+}
+boot();
+
+</script></body></html>

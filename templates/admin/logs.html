@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📝 Attendance Edit Logs — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link " href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link " href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link " href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link active" href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link " href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📝 Attendance Edit Logs</div><div id="topbarExtra" class="ml-auto flex gap-8"></div></div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div id="toast" class="toast"></div>
+<div class="modal-bg" id="modal1" onclick="bgClose(event,'modal1')"><div class="modal"><div class="modal-hdr"><h3 id="modalTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modal1')">✕</button></div><div id="modalBody"></div></div></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const PAGE='logs';
+
+async function boot(){
+  $('topbarExtra').innerHTML='<span style="font-size:12px;color:var(--mut)">Full audit trail of all attendance changes</span>';
+  const logs=await api.get('/api/attendance/logs');
+  $('mainArea').innerHTML=`<div class="card p0 ovh"><div class="tbl-wrap"><table>
+    <thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Old</th><th>New</th><th>Changed By</th><th>Role</th><th>Reason</th><th>When</th></tr></thead>
+    <tbody>${logs.map(l=>`<tr>
+      <td><strong>${esc(l.studentName)}</strong></td>
+      <td style="font-size:12px">${esc(l.subjectName)}</td>
+      <td style="font-family:monospace;font-size:12px">${l.date}</td>
+      <td>${badge(l.oldStatus)}</td>
+      <td>${badge(l.newStatus)}</td>
+      <td style="font-weight:600">${esc(l.modifiedBy)}</td>
+      <td><span class="badge b-info">${esc(l.modifiedByRole)}</span></td>
+      <td style="font-size:11px;color:var(--mut)">${esc(l.reason||'—')}</td>
+      <td style="font-size:11px;color:var(--mut)">${esc(l.modifiedAt)}</td>
+    </tr>`).join('')}</tbody>
+  </table></div><div class="tbl-foot">${logs.length} edit records</div></div>`;
+}
+boot();
+
+</script></body></html>

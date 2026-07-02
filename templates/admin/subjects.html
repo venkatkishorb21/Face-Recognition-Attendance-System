@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📚 Manage Subjects — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link active" href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link active" href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link " href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link " href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📚 Manage Subjects</div><div id="topbarExtra" class="ml-auto flex gap-8"></div></div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div id="toast" class="toast"></div>
+<div class="modal-bg" id="modal1" onclick="bgClose(event,'modal1')"><div class="modal"><div class="modal-hdr"><h3 id="modalTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modal1')">✕</button></div><div id="modalBody"></div></div></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const PAGE='subjects';
+
+let subjects=[],teachers=[];
+async function boot(){
+  [subjects,teachers]=await Promise.all([api.get('/api/subjects'),api.get('/api/admin/teachers')]);
+  $('topbarExtra').innerHTML='<button class="btn btn-primary btn-sm" onclick="openAddModal()">➕ Add Subject</button>';
+  render();
+}
+function render(){
+  $('mainArea').innerHTML=`<div class="card p0 ovh"><div class="tbl-wrap"><table>
+    <thead><tr><th>Subject</th><th>Code</th><th>Teacher</th><th>Department</th><th>Sem</th><th>Credits</th><th>Actions</th></tr></thead>
+    <tbody>${subjects.map(s=>`<tr>
+      <td><strong>${esc(s.name)}</strong></td>
+      <td style="font-family:monospace">${esc(s.code)}</td>
+      <td>${esc(s.teacherName)}</td>
+      <td>${esc(s.department||'—')}</td>
+      <td style="font-family:monospace">Sem ${s.semester}</td>
+      <td style="font-family:monospace">${s.credits}</td>
+      <td><div class="flex gap-5">
+        <button class="btn btn-outline btn-xs" onclick="openAssign('${s.id}','${esc(s.name)}')">Assign Teacher</button>
+        <button class="btn btn-danger btn-xs" onclick="delSub('${s.id}','${esc(s.name)}')">Delete</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table></div><div class="tbl-foot">${subjects.length} subjects</div></div>`;
+}
+function openAddModal(){
+  $('modalTitle').textContent='📚 Add Subject';
+  $('modalBody').innerHTML=`
+    <div class="form-group"><label>Subject Name *</label><input id="sName" placeholder="C Programming"/></div>
+    <div class="form-group"><label>Code *</label><input id="sCode" placeholder="CS101"/></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Department</label><input id="sDept" placeholder="CSE"/></div>
+      <div class="form-group"><label>Semester</label><select id="sSem">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}">Semester ${n}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Credits</label><input id="sCredits" type="number" value="3"/></div>
+      <div class="form-group"><label>Assign Teacher</label><select id="sTeacher"><option value="">Unassigned</option>${teachers.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+    </div>
+    <button class="btn btn-primary w100 mt-8" onclick="addSub()">✅ Add Subject</button>`;
+  openModal('modal1');
+}
+async function addSub(){
+  const res=await api.post('/api/subjects',{name:$('sName').value,code:$('sCode').value,
+    department:$('sDept').value,semester:$('sSem').value,credits:$('sCredits').value,teacherId:$('sTeacher').value||null});
+  if(res.ok){subjects=await api.get('/api/subjects');render();closeModal('modal1');toast('Subject added','ok');}
+  else toast(res.error||'Failed','err');
+}
+function openAssign(id,name){
+  $('modalTitle').textContent=`📚 Assign Teacher — ${name}`;
+  $('modalBody').innerHTML=`<div class="form-group"><label>Select Teacher</label>
+    <select id="tSel"><option value="">Unassigned</option>${teachers.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+    <button class="btn btn-primary w100 mt-8" onclick="assignTeacher('${id}')">✅ Assign</button>`;
+  openModal('modal1');
+}
+async function assignTeacher(subId){
+  const res=await api.post(`/api/admin/subjects/${subId}/assign`,{teacherId:$('tSel').value||null});
+  if(res.ok){subjects=await api.get('/api/subjects');render();closeModal('modal1');toast('Assigned','ok');}
+}
+async function delSub(id,name){
+  if(!confirm(`Delete ${name}? This removes all attendance records for this subject.`))return;
+  const res=await api.del(`/api/subjects/${id}`);
+  if(res.ok){subjects=await api.get('/api/subjects');render();toast('Deleted','ok');}
+}
+boot();
+
+</script></body></html>

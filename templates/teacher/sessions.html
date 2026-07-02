@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>▶ Attendance Sessions — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Teacher Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">👨‍🏫 Teacher</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/teacher/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link active" href="/teacher/sessions"><span class="nav-icon">▶</span>Start Session</a>
+  <a class="nav-link " href="/teacher/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/teacher/students"><span class="nav-icon">👥</span>My Students</a>
+  <div class="nav-sec">Requests</div>
+  <a class="nav-link " href="/teacher/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/teacher/corrections"><span class="nav-icon">✏</span>Corrections</a>
+  <a class="nav-link " href="/teacher/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/teacher/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">Account</div>
+  <a class="nav-link " href="/teacher/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">▶ Attendance Sessions</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let subs=[],sessions=[];
+async function boot(){
+  [subs,sessions]=await Promise.all([api.get('/api/subjects'),api.get('/api/sessions')]);
+  document.getElementById('topExtra').innerHTML='<button class="btn btn-success btn-sm" onclick="openStartModal()">▶ Start Session</button>';
+  renderAll();
+}
+function openStartModal(){
+  document.getElementById('mTitle').textContent='▶ Start Attendance Session';
+  document.getElementById('mBody').innerHTML=`
+    <div class="form-group"><label>Subject *</label><select id="ss"><option value="">Select…</option>${subs.map(s=>`<option value="${s.id}">${esc(s.name)} (${esc(s.code)})</option>`).join('')}</select></div>
+    <div class="form-group"><label>Duration (minutes)</label><input id="sd" type="number" value="60" min="15" max="300"/></div>
+    <div class="form-group"><label>Room</label><input id="sr" placeholder="LH-101"/></div>
+    <div class="form-group"><label>GPS Radius (metres)</label><input id="sgr" type="number" value="100"/></div>
+    <button class="btn btn-ghost w100 mb-8" onclick="gps()">📍 Capture My GPS (for location lock)</button>
+    <div id="gst" style="font-size:11px;color:var(--mut);margin-bottom:10px"></div>
+    <input type="hidden" id="slat"/><input type="hidden" id="slng"/>
+    <button class="btn btn-success w100" onclick="startSess()">▶ Start Now</button>`;
+  openModal('m1');
+}
+function gps(){document.getElementById('gst').textContent='Getting GPS…';navigator.geolocation.getCurrentPosition(p=>{document.getElementById('slat').value=p.coords.latitude;document.getElementById('slng').value=p.coords.longitude;document.getElementById('gst').textContent='✓ GPS: '+p.coords.latitude.toFixed(5)+', '+p.coords.longitude.toFixed(5);toast('GPS captured','ok');},()=>document.getElementById('gst').textContent='GPS denied',{enableHighAccuracy:true});}
+async function startSess(){
+  const sub=document.getElementById('ss').value;if(!sub){toast('Select subject','err');return;}
+  const r=await api.post('/api/sessions/start',{subjectId:sub,durationMinutes:parseInt(document.getElementById('sd').value)||60,
+    room:document.getElementById('sr').value,lat:parseFloat(document.getElementById('slat').value)||null,
+    lng:parseFloat(document.getElementById('slng').value)||null,radius:parseInt(document.getElementById('sgr').value)||100});
+  if(r.ok){sessions=await api.get('/api/sessions');renderAll();closeModal('m1');toast('Session started!','ok');}else toast(r.error||'Failed','err');
+}
+function renderAll(){
+  const active=sessions.filter(s=>s.status==='Active'||s.status==='Extended');
+  const closed=sessions.filter(s=>s.status==='Closed');
+  let h=`<div class="card mb-14"><div class="card-title flex gap-8">🟢 Active Sessions <span class="badge b-approved">${active.length}</span></div>`;
+  h+=active.length?active.map(s=>`<div class="sess-card sess-active flex gap-10 flexwrap mb-8">
+    <div style="flex:1"><div style="font-weight:700;font-size:14px">${esc(s.subjectName)}</div>
+      <div style="font-size:11px;color:var(--mut)">Room: ${esc(s.room||'—')} · Started: ${s.startTime} · ${s.durationMinutes}min · Auto-close: ${s.autoCloseAt?s.autoCloseAt.slice(11,16):'—'}</div>
+      <div style="margin-top:6px">${renderCountdown(s.remainingMinutes)}</div></div>
+    <div class="flex gap-8 flexwrap">
+      <button class="btn btn-outline btn-sm" onclick="viewSess('${s.id}')">👁 View</button>
+      <button class="btn btn-warn btn-sm" onclick="ext('${s.id}',15)">+15</button>
+      <button class="btn btn-warn btn-sm" onclick="ext('${s.id}',30)">+30</button>
+      <button class="btn btn-danger btn-sm" onclick="cls('${s.id}')">■ Close</button>
+    </div></div>`).join(''):'<div class="empty" style="padding:14px"><div>📅</div><p>No active sessions</p></div>';
+  h+=`</div><div class="card p0 ovh"><div class="tbl-wrap"><table><thead><tr><th>Subject</th><th>Date</th><th>Start</th><th>End</th><th>Duration</th><th>Room</th><th>Status</th><th>Present</th><th>Actions</th></tr></thead><tbody>`;
+  h+=closed.map(s=>`<tr><td><strong>${esc(s.subjectName)}</strong></td><td style="font-family:monospace">${s.date}</td><td style="font-family:monospace">${s.startTime}</td><td style="font-family:monospace">${s.endTime||'—'}</td><td>${s.durationMinutes}min</td><td>${esc(s.room||'—')}</td><td>${badge(s.status)}</td><td style="color:var(--ok);font-weight:700">${s.presentCount||0}/${s.totalStudents||0}</td>
+    <td><div class="flex gap-5"><button class="btn btn-ghost btn-xs" onclick="viewSess('${s.id}')">👁</button><button class="btn btn-outline btn-xs" onclick="reopen('${s.id}')">↺</button></div></td></tr>`).join('');
+  h+=`</tbody></table></div><div class="tbl-foot">${closed.length} closed sessions</div></div>`;
+  document.getElementById('mainArea').innerHTML=h;
+}
+async function viewSess(id){
+  const recs=await api.get('/api/attendance?sessionId='+id);
+  const p=recs.filter(r=>r.status==='Present').length,a=recs.filter(r=>r.status==='Absent').length;
+  document.getElementById('mTitle2').textContent='Session Attendance';
+  document.getElementById('mBody2').innerHTML=`<div class="flex gap-10 mb-12 flexwrap">
+    <div class="stat" style="flex:1"><div class="stat-val txt-ok">${p}</div><div class="stat-lbl">Present</div></div>
+    <div class="stat" style="flex:1"><div class="stat-val txt-err">${a}</div><div class="stat-lbl">Absent</div></div>
+    <div class="stat" style="flex:1"><div class="stat-val">${recs.length}</div><div class="stat-lbl">Total</div></div>
+  </div>
+  <div class="alert alert-info mb-10" style="font-size:12px">To edit attendance, go to the Attendance page and search by student name.</div>
+  <div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Status</th><th>Time</th><th>Confidence</th><th>Method</th></tr></thead>
+  <tbody>${recs.map(r=>`<tr><td><strong>${esc(r.studentName)}</strong></td><td>${badge(r.status)}</td>
+    <td style="font-family:monospace;font-size:12px">${r.time||'—'}</td>
+    <td style="font-family:monospace;font-size:12px;color:${r.confidence>=55?'var(--ok)':'var(--wrn)'}">${r.confidence===100?'Manual':r.confidence+'%'}</td>
+    <td style="font-size:11px;color:var(--mut)">${esc(r.markedBy)}</td></tr>`).join('')}</tbody></table></div>`;
+  openModal('m2');
+}
+async function ext(id,m){const r=await api.post('/api/sessions/'+id+'/extend',{minutes:m});if(r.ok){sessions=await api.get('/api/sessions');renderAll();toast('Extended '+m+'min','ok');}else toast(r.error||'Failed','err');}
+async function cls(id){if(!confirm('Close session? All unscanned students will be automatically marked ABSENT.'))return;const r=await api.post('/api/sessions/'+id+'/close',{});if(r.ok){sessions=await api.get('/api/sessions');renderAll();toast('Closed. Auto-absent applied.','ok');}else toast('Failed','err');}
+async function reopen(id){const m=parseInt(prompt('Reopen for how many minutes?','30'));if(!m)return;const r=await api.post('/api/sessions/'+id+'/reopen',{minutes:m});if(r.ok){sessions=await api.get('/api/sessions');renderAll();toast('Reopened','ok');}else toast(r.error||'Failed','err');}
+boot();setInterval(async()=>{sessions=await api.get('/api/sessions');renderAll();},30000);
+
+</script></body></html>

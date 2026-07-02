@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin Dashboard — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div>
+  <a class="nav-link active" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link" href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link" href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link" href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link" href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link" href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link" href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link" href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+  <div class="topbar">
+    <div class="topbar-title">🛡 Admin Dashboard</div>
+    <div style="font-size:12px;color:var(--mut)" id="dateStr"></div>
+    <div class="ml-auto flex gap-8">
+      <button class="bell-btn" onclick="openNotifModal()">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+    </div>
+  </div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="grid2 mb-14">
+    <div class="card">
+      <div class="card-title">📈 14-Day Attendance Trend</div>
+      <canvas id="trendCanvas" height="100"></canvas>
+      <div id="trendLbl" class="flex mt-6" style="justify-content:space-between;flex-wrap:wrap;gap:2px"></div>
+      <div class="flex gap-14 mt-8" style="font-size:11px"><span style="color:var(--ok)">■ Present</span><span style="color:var(--err)">■ Absent</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ Quick Actions</div>
+      <div class="flex-col gap-8">
+        <a href="/admin/teachers" class="btn btn-primary w100">➕ Add Teacher</a>
+        <a href="/admin/students" class="btn btn-outline w100">➕ Add Student</a>
+        <a href="/admin/subjects" class="btn btn-outline w100">📚 Assign Subjects</a>
+        <a href="/admin/logs" class="btn btn-ghost w100">📝 View Edit Logs</a>
+        <a href="/api/admin/export/full" class="btn btn-ghost w100">⬇ Export All Data CSV</a>
+        <a href="/admin/settings" class="btn btn-ghost w100">⚙ System Settings</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-14">
+    <div class="card-title">📚 Subject-wise Attendance</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Subject</th><th>Code</th><th>Teacher</th><th>Total</th><th>Present</th><th>Rate</th></tr></thead>
+      <tbody id="subStatsBody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">👥 Registered Students</div>
+      <div id="stuSummary"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">👨‍🏫 Teachers Overview</div>
+      <div id="tchSummary"></div>
+    </div>
+  </div>
+</main>
+</div>
+
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8"><button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>{loadNotifBadge();openNotifModal();})">Mark all read</button>
+    <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+async function boot(){
+  $('dateStr').textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const data=await api.get('/api/admin/analytics');
+  $('statsRow').innerHTML=[
+    {l:'Total Students',v:data.totalStudents,i:'👥',c:'var(--acc)',s:`${data.activeStudents} active`},
+    {l:'Total Teachers',v:data.totalTeachers,i:'👨‍🏫',c:'var(--acc)',s:`${data.totalSubjects} subjects`},
+    {l:'Today Present',v:data.todayPresent,i:'✅',c:'var(--ok)',s:`${data.todaySessions} sessions`},
+    {l:'Overall Rate',v:data.overallRate+'%',i:'📈',c:'var(--ok)',s:`${data.totalAttendance} records`},
+    {l:'Active Sessions',v:data.activeSessions,i:'▶',c:'var(--wrn)',s:'right now'},
+    {l:'Pending Leaves',v:data.pendingLeaves,i:'🏖',c:'var(--wrn)',s:'awaiting'},
+    {l:'Pending Corrections',v:data.pendingCorrections,i:'✏',c:'var(--wrn)',s:'awaiting'},
+    {l:'Face Registered',v:data.faceRegistered,i:'👁',c:'var(--acc)',s:`of ${data.activeStudents}`},
+  ].map(s=>`<div class="stat"><div class="stat-icon">${s.i}</div><div class="stat-val" style="color:${s.c}">${s.v}</div><div class="stat-lbl">${s.l}</div><div class="stat-sub">${s.s}</div></div>`).join('');
+
+  drawTrend('trendCanvas','trendLbl',data.trend);
+
+  $('subStatsBody').innerHTML=(data.subjectStats||[]).map(s=>{const c=pctColor(s.rate);return`<tr>
+    <td><strong>${esc(s.name)}</strong></td><td style="font-family:monospace">${esc(s.code)}</td>
+    <td>${esc(s.teacherName)}</td><td style="font-family:monospace">${s.total}</td>
+    <td style="color:var(--ok);font-weight:700">${s.present}</td>
+    <td><div class="flex gap-6">${prog(s.rate,c,5)}<span style="font-size:11px;font-family:monospace;color:${c}">${s.rate}%</span></div></td>
+  </tr>`;}).join('');
+
+  // Student summary
+  const stus=await api.get('/api/students');
+  $('stuSummary').innerHTML=`<div class="flex gap-10 mb-10 flexwrap">
+    <div class="stat" style="flex:1"><div class="stat-val txt-acc">${stus.length}</div><div class="stat-lbl">Total</div></div>
+    <div class="stat" style="flex:1"><div class="stat-val txt-ok">${stus.filter(s=>s.status==='Active').length}</div><div class="stat-lbl">Active</div></div>
+    <div class="stat" style="flex:1"><div class="stat-val txt-acc">${stus.filter(s=>s.faceRegistered).length}</div><div class="stat-lbl">Face Reg.</div></div>
+  </div>
+  ${stus.slice(0,5).map(s=>`<div class="flex gap-8 mb-6">
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid var(--bdr);flex-shrink:0;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--acc);font-size:13px">
+      ${s.photo?`<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover"/>`:s.name[0]}</div>
+    <div><div style="font-weight:600;font-size:12px">${esc(s.name)}</div><div style="font-size:10px;color:var(--mut)">${esc(s.rollNo||s.id)}</div></div>
+    <div class="ml-auto">${badge(s.status)}</div>
+  </div>`).join('')}
+  <a href="/admin/students" style="font-size:12px;color:var(--acc)">View all students →</a>`;
+
+  // Teacher summary
+  const tchs=await api.get('/api/admin/teachers');
+  $('tchSummary').innerHTML=tchs.map(t=>`<div class="flex gap-8 mb-8 msg-box" style="padding:10px">
+    <div style="font-size:22px">👨‍🏫</div>
+    <div style="flex:1"><div style="font-weight:700">${esc(t.name)}</div>
+      <div style="font-size:11px;color:var(--mut)">${esc(t.department)} · ${esc(t.email)}</div></div>
+    <div style="font-size:11px;font-family:monospace;color:var(--acc)">${t.subjectCount} subjects</div>
+  </div>`).join('')+'<a href="/admin/teachers" style="font-size:12px;color:var(--acc)">Manage teachers →</a>';
+
+  loadNotifBadge();
+}
+async function openNotifModal(){await renderNotifModal();openModal('notifModal');}
+boot();
+</script>
+</body></html>

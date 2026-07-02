@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📋 All Attendance — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link " href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link " href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link active" href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link " href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📋 All Attendance</div><div id="topbarExtra" class="ml-auto flex gap-8"></div></div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div id="toast" class="toast"></div>
+<div class="modal-bg" id="modal1" onclick="bgClose(event,'modal1')"><div class="modal"><div class="modal-hdr"><h3 id="modalTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modal1')">✕</button></div><div id="modalBody"></div></div></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const PAGE='attendance';
+
+let records=[], subjects=[];
+async function boot(){
+  [records,subjects]=await Promise.all([api.get('/api/attendance'),api.get('/api/subjects')]);
+  $('topbarExtra').innerHTML=`<input id="searchQ" placeholder="🔍 Search name or ID…" style="width:200px" oninput="render()"/>
+    <select id="subFilter" onchange="render()" style="width:180px"><option value="">All Subjects</option>${subjects.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select>
+    <input id="dateFilter" type="date" onchange="render()" style="width:140px"/>
+    <a href="/api/admin/export/full" class="btn btn-ghost btn-sm">⬇ Export CSV</a>`;
+  render();
+}
+function render(){
+  const subF=$('subFilter')?.value||'', dateF=$('dateFilter')?.value||'', q=($('searchQ')?.value||'').trim().toLowerCase();
+  const list=records.filter(r=>(!subF||r.subjectId===subF)&&(!dateF||r.date===dateF)&&
+    (!q||(r.studentName||'').toLowerCase().includes(q)||(r.studentId||'').toLowerCase().includes(q)||(r.rollNo||'').toLowerCase().includes(q)));
+  $('mainArea').innerHTML=`<div class="card p0 ovh"><div class="tbl-wrap"><table>
+    <thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Time</th><th>Status</th><th>Confidence</th><th>Marked By</th><th>Edit</th></tr></thead>
+    <tbody>${list.slice(0,200).map(r=>`<tr>
+      <td><strong>${esc(r.studentName)}</strong><div style="font-size:10px;color:var(--mut)">${esc(r.rollNo||'')}</div></td>
+      <td style="font-size:12px">${esc(r.subjectName)}</td>
+      <td style="font-family:monospace;font-size:12px">${r.date}</td>
+      <td style="font-family:monospace;font-size:12px">${r.time}</td>
+      <td>${badge(r.status)}</td>
+      <td style="font-family:monospace;font-size:12px;color:${r.confidence>=55?'var(--ok)':'var(--wrn)'}">${r.confidence===100?'Manual':r.confidence+'%'}</td>
+      <td style="font-size:11px;color:var(--mut)">${esc(r.markedBy)}${r.edited?'<span class="badge b-info" style="margin-left:4px">Edited</span>':''}</td>
+      <td><button class="btn btn-warn btn-xs" onclick="editAtt('${r.id}','${esc(r.studentName)}','${r.date}','${r.status}')">Edit</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div><div class="tbl-foot">Showing ${Math.min(list.length,200)} of ${list.length} records</div></div>`;
+}
+function editAtt(id,name,date,status){
+  $('modalTitle').textContent=`✏ Edit: ${name} on ${date}`;
+  $('modalBody').innerHTML=`<div class="form-group"><label>New Status</label>
+    <select id="newSt"><option>Present</option><option>Absent</option><option>Late</option></select></div>
+    <div class="form-group"><label>Reason</label><input id="reason" placeholder="Reason for change…"/></div>
+    <button class="btn btn-primary w100 mt-8" onclick="saveAtt('${id}')">💾 Save</button>`;
+  $('newSt').value=status;
+  openModal('modal1');
+}
+async function saveAtt(id){
+  const res=await api.put(`/api/attendance/${id}`,{status:$('newSt').value,reason:$('reason').value});
+  if(res.ok){records=await api.get('/api/attendance');render();closeModal('modal1');toast('Updated','ok');}
+}
+boot();
+
+</script></body></html>

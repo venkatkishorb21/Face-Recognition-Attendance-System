@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>✏ Correction Requests — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/>
+</head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Teacher Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">👨‍🏫 Teacher</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/teacher/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/teacher/sessions"><span class="nav-icon">▶</span>Start Session</a>
+  <a class="nav-link " href="/teacher/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/teacher/students"><span class="nav-icon">👥</span>My Students</a>
+  <div class="nav-sec">Requests</div>
+  <a class="nav-link " href="/teacher/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link active" href="/teacher/corrections"><span class="nav-icon">✏</span>Corrections</a>
+  <a class="nav-link " href="/teacher/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/teacher/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">Account</div>
+  <a class="nav-link " href="/teacher/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">✏ Correction Requests</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let corrs=[];
+async function boot(){
+  corrs=await api.get('/api/corrections');render();
+}
+function render(){
+  const counts={Pending:0,Approved:0,Rejected:0};corrs.forEach(c=>{if(counts[c.status]!==undefined)counts[c.status]++;});
+  let h='<div class="alert alert-info mb-14">Students request corrections when face recognition fails. Approve to automatically mark them Present.</div>';
+  h+='<div class="flex gap-10 mb-14">'+Object.entries(counts).map(([s,c])=>`<div class="stat flex1"><div class="stat-val">${c}</div><div class="stat-lbl">${s.toUpperCase()}</div></div>`).join('')+'</div>';
+  h+=`<div class="card p0 ovh"><div class="tbl-wrap"><table>
+    <thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Current Status</th><th>Message</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${corrs.length?corrs.map(c=>`<tr>
+      <td><strong>${esc(c.studentName)}</strong></td>
+      <td style="font-size:12px">${esc(c.subjectName||'—')}</td>
+      <td style="font-family:monospace;font-size:12px">${c.date}</td>
+      <td>${badge(c.currentStatus)}</td>
+      <td style="font-size:12px;max-width:220px">${esc(c.message)}${c.teacherRemark?`<div style="font-size:10px;color:var(--mut);margin-top:2px">💬 ${esc(c.teacherRemark)}</div>`:''}</td>
+      <td>${badge(c.status)}</td>
+      <td>${c.status==='Pending'?`<div class="flex gap-5"><button class="btn btn-success btn-xs" onclick="rev('${c.id}','Approved')">✓ Approve</button><button class="btn btn-danger btn-xs" onclick="rev('${c.id}','Rejected')">✗ Reject</button></div>`:'—'}</td>
+    </tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="empty-icon">✏</div><p>No correction requests</p></div></td></tr>`}</tbody>
+  </table></div><div class="tbl-foot">${corrs.length} correction request${corrs.length===1?'':'s'}</div></div>`;
+  document.getElementById('mainArea').innerHTML=h;
+}
+async function rev(id,status){
+  const remark=prompt(status+' — Enter remark (optional):','');
+  if(remark===null)return;
+  const r=await api.post('/api/corrections/'+id+'/review',{status,remark:remark||''});
+  if(r.ok){corrs=await api.get('/api/corrections');render();toast(status==='Approved'?'Approved & marked Present':status,'ok');}else toast('Failed','err');
+}
+boot();
+
+</script></body></html>

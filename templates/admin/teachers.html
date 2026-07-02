@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Teachers — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link active" href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link" href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link" href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link" href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link" href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link" href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div><a class="nav-link" href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+  <div class="topbar"><div class="topbar-title">👨‍🏫 Manage Teachers</div>
+    <button class="btn btn-primary ml-auto" onclick="openModal('addModal')">➕ Add Teacher</button></div>
+  <div class="card p0 ovh">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Teacher</th><th>Email</th><th>Department</th><th>Qualification</th><th>Subjects</th><th>Actions</th></tr></thead>
+      <tbody id="tbody"></tbody></table></div>
+    <div class="tbl-foot" id="foot"></div>
+  </div>
+</main></div>
+<div class="modal-bg" id="addModal" onclick="bgClose(event,'addModal')">
+  <div class="modal"><div class="modal-hdr"><h3>➕ Add Teacher</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('addModal')">✕</button></div>
+    <div class="form-group"><label>Full Name *</label><input id="aName" placeholder="Dr. Smith"/></div>
+    <div class="form-group"><label>Email *</label><input id="aEmail" type="email" placeholder="teacher@uni.edu"/></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Department</label><input id="aDept" placeholder="CSE"/></div>
+      <div class="form-group"><label>Phone</label><input id="aPhone" placeholder="9000000000"/></div>
+    </div>
+    <div class="form-group"><label>Qualification</label><input id="aQual" placeholder="Ph.D CS"/></div>
+    <div class="form-group"><label>Password</label><input id="aPass" type="password" value="teacher123"/></div>
+    <button class="btn btn-primary w100 mt-8" onclick="addTeacher()">✅ Add Teacher</button></div>
+</div>
+<div class="modal-bg" id="editModal" onclick="bgClose(event,'editModal')">
+  <div class="modal"><div class="modal-hdr"><h3>✏ Edit Teacher</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('editModal')">✕</button></div>
+    <input type="hidden" id="eId"/>
+    <div class="form-group"><label>Full Name</label><input id="eName"/></div>
+    <div class="form-group"><label>Email</label><input id="eEmail" type="email"/></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Department</label><input id="eDept"/></div>
+      <div class="form-group"><label>Phone</label><input id="ePhone"/></div>
+    </div>
+    <div class="form-group"><label>Qualification</label><input id="eQual"/></div>
+    <div class="form-group"><label>New Password (leave blank to keep)</label><input id="ePass" type="password" placeholder="••••••••"/></div>
+    <button class="btn btn-primary w100 mt-8" onclick="saveEdit()">💾 Save Changes</button></div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+let teachers=[];
+async function boot(){teachers=await api.get('/api/admin/teachers');render();}
+function render(){
+  const tbody=$('tbody');
+  tbody.innerHTML=teachers.map(t=>`<tr>
+    <td><strong>${esc(t.name)}</strong><div style="font-size:10px;color:var(--mut);font-family:monospace">${esc(t.id)}</div></td>
+    <td style="font-size:12px">${esc(t.email)}</td>
+    <td>${esc(t.department||'—')}</td>
+    <td style="font-size:12px">${esc(t.qualification||'—')}</td>
+    <td><span class="badge b-info">${t.subjectCount} subjects</span></td>
+    <td><div class="flex gap-5">
+      <button class="btn btn-outline btn-xs" onclick="openEdit('${t.id}')">Edit</button>
+      <button class="btn btn-danger btn-xs" onclick="del('${t.id}','${esc(t.name)}')">Delete</button>
+    </div></td>
+  </tr>`).join('');
+  $('foot').textContent=`${teachers.length} teachers`;
+}
+async function addTeacher(){
+  if(!$('aName').value||!$('aEmail').value){toast('Fill required fields','err');return;}
+  const res=await api.post('/api/admin/teachers',{name:$('aName').value,email:$('aEmail').value,
+    department:$('aDept').value,phone:$('aPhone').value,qualification:$('aQual').value,password:$('aPass').value});
+  if(res.ok){teachers=await api.get('/api/admin/teachers');render();closeModal('addModal');toast('Teacher added','ok');}
+  else toast(res.error||'Failed','err');
+}
+function openEdit(id){
+  const t=teachers.find(x=>x.id===id);if(!t)return;
+  $('eId').value=t.id;$('eName').value=t.name;$('eEmail').value=t.email;
+  $('eDept').value=t.department||'';$('ePhone').value=t.phone||'';$('eQual').value=t.qualification||'';$('ePass').value='';
+  openModal('editModal');
+}
+async function saveEdit(){
+  const id=$('eId').value;
+  const res=await api.put(`/api/admin/teachers/${id}`,{name:$('eName').value,email:$('eEmail').value,
+    department:$('eDept').value,phone:$('ePhone').value,qualification:$('eQual').value,password:$('ePass').value||undefined});
+  if(res.ok){teachers=await api.get('/api/admin/teachers');render();closeModal('editModal');toast('Updated','ok');}
+  else toast('Failed','err');
+}
+async function del(id,name){
+  if(!confirm(`Delete ${name}? Their subjects will be unassigned.`))return;
+  const res=await api.del(`/api/admin/teachers/${id}`);
+  if(res.ok){teachers=await api.get('/api/admin/teachers');render();toast('Deleted','ok');}
+}
+boot();
+</script></body></html>

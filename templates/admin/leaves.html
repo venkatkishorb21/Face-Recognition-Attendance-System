@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🏖 Leave Requests — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/>
+</head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link " href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link " href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link " href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link active" href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div>
+  <a class="nav-link " href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">🏖 Leave Requests</div><div id="topbarExtra" class="ml-auto flex gap-8"></div></div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div id="toast" class="toast"></div>
+<div class="modal-bg" id="modal1" onclick="bgClose(event,'modal1')"><div class="modal"><div class="modal-hdr"><h3 id="modalTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modal1')">✕</button></div><div id="modalBody"></div></div></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const PAGE='leaves';
+
+let leaves=[];
+async function boot(){
+  leaves=await api.get('/api/leaves');
+  $('topbarExtra').innerHTML='<select id="stFilter" onchange="render()" style="width:160px"><option value="">All Status</option><option>Pending</option><option>Approved</option><option>Rejected</option></select>';
+  render();
+}
+function daysBetween(a,b){
+  const d=(new Date(b)-new Date(a))/86400000;
+  return Math.max(1,Math.round(d)+1);
+}
+function render(){
+  const f=$('stFilter')?.value||'';
+  const list=f?leaves.filter(l=>l.status===f):leaves;
+  const counts={Pending:0,Approved:0,Rejected:0};
+  leaves.forEach(l=>{if(counts[l.status]!==undefined)counts[l.status]++;});
+  $('mainArea').innerHTML=`
+    <div class="alert alert-info mb-14">Admin can view every leave request, but approving or rejecting is done by the responsible teacher: the subject's teacher for a subject-specific leave, or the student's mentor for a full-day leave.</div>
+    <div class="flex gap-10 mb-14">
+      <div class="stat flex1"><div class="stat-val">${counts.Pending}</div><div class="stat-lbl">PENDING</div></div>
+      <div class="stat flex1"><div class="stat-val">${counts.Approved}</div><div class="stat-lbl">APPROVED</div></div>
+      <div class="stat flex1"><div class="stat-val">${counts.Rejected}</div><div class="stat-lbl">REJECTED</div></div>
+    </div>
+    <div class="card p0 ovh"><div class="tbl-wrap"><table>
+      <thead><tr><th>Student</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Responsible</th><th>Status</th><th></th></tr></thead>
+      <tbody>${list.length?list.map(l=>`<tr>
+        <td><strong>${esc(l.studentName)}</strong></td>
+        <td style="font-size:12px">${l.subjectId?'📘 '+esc(l.subjectName):'🧭 Full Day'}</td>
+        <td style="font-family:monospace;font-size:12px">${l.fromDate}</td>
+        <td style="font-family:monospace;font-size:12px">${l.toDate}</td>
+        <td style="font-family:monospace;font-size:12px">${daysBetween(l.fromDate,l.toDate)}</td>
+        <td style="font-size:12px;max-width:200px">${esc(l.reason)}${l.teacherRemark?`<div style="font-size:10px;color:var(--mut);margin-top:2px">💬 ${esc(l.teacherRemark)}</div>`:''}</td>
+        <td style="font-size:12px">${esc(l.responsibleTeacher)}</td>
+        <td>${badge(l.status)}</td>
+        <td><button class="btn btn-ghost btn-xs" onclick="delLeave('${l.id}')">🗑</button></td>
+      </tr>`).join(''):`<tr><td colspan="9"><div class="empty"><div class="empty-icon">🏖</div><p>No leave requests</p></div></td></tr>`}</tbody>
+    </table></div><div class="tbl-foot">${list.length} leave request${list.length===1?'':'s'}</div></div>`;
+}
+async function delLeave(id){
+  if(!confirm('Delete this leave request?'))return;
+  const res=await api.del(`/api/leaves/${id}`);
+  if(res.ok){leaves=await api.get('/api/leaves');render();toast('Deleted','ok');}
+}
+boot();
+
+</script></body></html>

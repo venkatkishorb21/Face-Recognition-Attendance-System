@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📷 Register Face — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Student Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">🎓 Student</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/student/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link active" href="/student/register-face"><span class="nav-icon">📷</span>Register Face</a>
+  <a class="nav-link " href="/student/scan"><span class="nav-icon">👁</span>Scan Attendance</a>
+  <a class="nav-link " href="/student/attendance"><span class="nav-icon">📋</span>My Attendance</a>
+  <a class="nav-link " href="/student/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/student/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📷 Register Face</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let camStream=null,capturedPhoto=null;
+async function boot(){
+  const me=await api.get('/api/me');
+  document.getElementById('mainArea').innerHTML=`
+    <div class="grid2">
+      <div>
+        <div class="card mb-14">
+          <div class="card-title">📷 Capture Your Face</div>
+          <div class="alert alert-info mb-12">Face the camera directly in good lighting. This photo is used to verify your identity during attendance.</div>
+          <div class="cam-box" id="cb">
+            <video id="vid" autoplay playsinline muted></video>
+            <canvas id="can" style="display:none"></canvas>
+            <svg class="cam-svg" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid slice">
+              <ellipse cx="160" cy="118" rx="62" ry="78" fill="none" stroke="#1A7FD488" stroke-width="2" stroke-dasharray="8 4"/>
+            </svg>
+            <div class="cam-ph" id="cph"><div style="font-size:46px">📷</div><p>Camera not started</p></div>
+          </div>
+          <div class="flex gap-8 mt-10">
+            <button class="btn btn-primary flex1" id="bStart" onclick="startCam()">▶ Start Camera</button>
+            <button class="btn btn-success flex1" id="bCap" onclick="capture()" disabled style="display:none">📸 Capture</button>
+            <button class="btn btn-ghost" id="bStop" onclick="stopCam()" style="display:none">■ Stop</button>
+          </div>
+        </div>
+        <div class="card" id="prevCard" style="display:none">
+          <div class="card-title">✅ Preview</div>
+          <div style="text-align:center;margin-bottom:14px"><img id="prevImg" style="width:150px;height:150px;border-radius:50%;object-fit:cover;border:3px solid var(--acc);box-shadow:0 4px 16px var(--accl)"/></div>
+          <div class="alert alert-info mb-10">AI will extract 128 facial feature points from this photo</div>
+          <div class="flex gap-8">
+            <button class="btn btn-success flex1" onclick="savePhoto()">✅ Register Face</button>
+            <button class="btn btn-ghost" onclick="retake()">↺ Retake</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card mb-14">
+          <div class="card-title">👤 Current Status</div>
+          <div id="statusArea">${me.faceRegistered?
+            `<div class="alert alert-success">✅ Face registered successfully!<br><small>128-D AI encoding stored in database.</small></div>
+             <div style="text-align:center;margin-top:12px">${me.photo?`<img src="${me.photo}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid var(--ok)"/>`:''}
+             </div><p style="text-align:center;font-size:12px;color:var(--mut);margin-top:8px">Re-register anytime to update your photo</p>`
+            :'<div class="alert alert-warn">⚠ Face not registered yet. You cannot mark attendance until you register your face.</div>'}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">ℹ How It Works</div>
+          <div class="flex-col gap-12" style="font-size:13px">
+            <div class="flex gap-10"><span style="font-size:20px">1️⃣</span><div><strong>Capture</strong><div style="color:var(--mut)">Camera takes your clear face photo</div></div></div>
+            <div class="flex gap-10"><span style="font-size:20px">2️⃣</span><div><strong>AI Encoding</strong><div style="color:var(--mut)">dlib extracts 128 unique facial measurements</div></div></div>
+            <div class="flex gap-10"><span style="font-size:20px">3️⃣</span><div><strong>Stored</strong><div style="color:var(--mut)">128-D vector saved in PostgreSQL database</div></div></div>
+            <div class="flex gap-10"><span style="font-size:20px">4️⃣</span><div><strong>Verified</strong><div style="color:var(--mut)">Only YOUR face marks YOUR attendance</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+async function startCam(){
+  try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480}});
+    document.getElementById('vid').srcObject=camStream;document.getElementById('cph').style.display='none';
+    document.getElementById('bCap').disabled=false;document.getElementById('bCap').style.display='';
+    document.getElementById('bStop').style.display='';document.getElementById('bStart').style.display='none';}
+  catch(e){toast('Camera access denied — allow camera permissions','err');}
+}
+function stopCam(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  document.getElementById('vid').srcObject=null;document.getElementById('cph').style.display='';
+  document.getElementById('bCap').style.display='none';document.getElementById('bStop').style.display='none';document.getElementById('bStart').style.display='';}
+function capture(){
+  const v=document.getElementById('vid'),c=document.getElementById('can');
+  c.width=v.videoWidth||320;c.height=v.videoHeight||240;c.getContext('2d').drawImage(v,0,0);
+  capturedPhoto=c.toDataURL('image/jpeg',.9);stopCam();
+  document.getElementById('prevImg').src=capturedPhoto;document.getElementById('prevCard').style.display='';
+  toast('Photo captured! Review and save.','ok');}
+function retake(){capturedPhoto=null;document.getElementById('prevCard').style.display='none';startCam();}
+async function savePhoto(){
+  if(!capturedPhoto){toast('Capture photo first','err');return;}
+  const btn=document.querySelector('.btn-success');btn.disabled=true;btn.textContent='⏳ Processing…';
+  const r=await api.post('/api/students/'+UID+'/register-face',{photo:capturedPhoto});
+  btn.disabled=false;btn.textContent='✅ Register Face';
+  if(r.ok){toast(r.message||'Face registered!','ok');document.getElementById('prevCard').style.display='none';boot();}
+  else toast(r.error||'Failed','err');
+}
+boot();
+
+</script></body></html>

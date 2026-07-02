@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>👁 Scan Attendance — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Student Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">🎓 Student</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/student/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/student/register-face"><span class="nav-icon">📷</span>Register Face</a>
+  <a class="nav-link active" href="/student/scan"><span class="nav-icon">👁</span>Scan Attendance</a>
+  <a class="nav-link " href="/student/attendance"><span class="nav-icon">📋</span>My Attendance</a>
+  <a class="nav-link " href="/student/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/student/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">👁 Scan Attendance</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let camStream=null,userLat=null,userLng=null,sessions=[];
+async function boot(){
+  sessions=await api.get('/api/sessions/active');
+  const sp=new URLSearchParams(window.location.search).get('sess');
+  document.getElementById('mainArea').innerHTML=`
+    <div class="card mb-12" style="padding:12px 16px">
+      <div class="flex gap-10 flexwrap">
+        <div class="flex gap-8 flex1" id="lTime"><span style="font-size:15px">⏰</span><span id="lTimeT" style="font-size:12px">Select a session</span></div>
+        <div style="width:1px;background:var(--bdr)"></div>
+        <div class="flex gap-8 flex1" id="lLoc"><span style="font-size:15px">📍</span><span id="lLocT" style="font-size:12px">Getting GPS…</span></div>
+        <div style="width:1px;background:var(--bdr)"></div>
+        <div class="flex gap-8 flex1" id="lFace"><span style="font-size:15px">👁</span><span id="lFaceT" style="font-size:12px">Camera off</span></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div>
+        <div class="card mb-14">
+          <div class="card-title">📷 Select Session & Scan</div>
+          <div class="form-group">
+            <label>Active Session</label>
+            <select id="sessSel" onchange="onSessChange()" style="margin-bottom:10px">
+              <option value="">${sessions.length?'Select active session…':'No active sessions right now'}</option>
+              ${sessions.map(s=>`<option value="${s.id}">${esc(s.subjectName)} — ${s.startTime} (${s.room||'—'})</option>`).join('')}
+            </select>
+          </div>
+          <div id="sessInfo" class="alert alert-info mb-12" style="display:none"></div>
+          <div class="cam-box" id="camBox">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="canvas" style="display:none"></canvas>
+            <svg class="cam-svg" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid slice">
+              <ellipse cx="160" cy="118" rx="62" ry="78" fill="none" stroke="#1A7FD488" stroke-width="2" stroke-dasharray="8 4" id="faceGuide"/>
+              <g id="corners" stroke="#1A7FD4" stroke-width="3" fill="none">
+                <line x1="88" y1="34" x2="108" y2="34"/><line x1="88" y1="34" x2="88" y2="54"/>
+                <line x1="232" y1="34" x2="212" y2="34"/><line x1="232" y1="34" x2="232" y2="54"/>
+                <line x1="88" y1="202" x2="108" y2="202"/><line x1="88" y1="202" x2="88" y2="182"/>
+                <line x1="232" y1="202" x2="212" y2="202"/><line x1="232" y1="202" x2="232" y2="182"/>
+              </g>
+              <line id="scanLine" x1="88" y1="118" x2="232" y2="118" stroke="#1A7FD4" stroke-width="2.5" opacity="0">
+                <animateTransform attributeName="transform" type="translate" values="0,-80;0,80;0,-80" dur="1.1s" repeatCount="indefinite"/>
+              </line>
+            </svg>
+            <div class="cam-ph" id="camPh"><div style="font-size:46px">📷</div><p style="color:#8AAAC8">Start camera to scan</p></div>
+            <div class="scan-pulse" id="scanPulse" style="display:none"><span class="pdot"></span> BIOMETRIC SCAN IN PROGRESS…</div>
+          </div>
+          <div class="flex gap-8 mt-10">
+            <button class="btn btn-primary flex1" id="bScan" onclick="doScan()" disabled style="display:none">⚡ Scan My Face</button>
+            <button class="btn btn-ghost" id="bStop" onclick="stopCam()" style="display:none">■ Stop</button>
+            <button class="btn btn-primary flex1" id="bStart" onclick="startCam()">▶ Start Camera</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card mb-14"><div class="card-title">📊 Result</div><div id="resultArea"><div class="empty"><div class="empty-icon">🔍</div><p>Awaiting scan…</p></div></div></div>
+        <div class="card"><div class="card-title">📅 Today's Scans</div><div id="todayScans"><div class="empty"><div class="empty-icon">📋</div><p>No scans today</p></div></div></div>
+      </div>
+    </div>`;
+  if(sp){document.getElementById('sessSel').value=sp;onSessChange();}
+  refreshGPS();loadTodayScans();
+}
+function onSessChange(){
+  const id=document.getElementById('sessSel').value;
+  const s=sessions.find(x=>x.id===id);
+  const info=document.getElementById('sessInfo');
+  if(s){info.style.display='';info.textContent=`📗 ${s.subjectName} · Room: ${s.room||'—'} · ${renderCountdown(s.remainingMinutes)} · ${s.lat?'📍 GPS lock active':'No GPS lock'}`;
+    document.getElementById('lTimeT').textContent='Session active: '+s.startTime+' → '+s.autoCloseAt?.slice(11,16);}
+  else{info.style.display='none';document.getElementById('lTimeT').textContent='No session selected';}
+}
+function refreshGPS(){
+  document.getElementById('lLocT').textContent='Getting GPS…';
+  navigator.geolocation?.getCurrentPosition(p=>{userLat=p.coords.latitude;userLng=p.coords.longitude;document.getElementById('lLocT').textContent=userLat.toFixed(5)+', '+userLng.toFixed(5);},()=>document.getElementById('lLocT').textContent='GPS denied',{enableHighAccuracy:true,timeout:8000});
+}
+async function startCam(){
+  try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480}});
+    document.getElementById('video').srcObject=camStream;document.getElementById('camPh').style.display='none';
+    document.getElementById('bScan').disabled=false;document.getElementById('bScan').style.display='';
+    document.getElementById('bStop').style.display='';document.getElementById('bStart').style.display='none';
+    document.getElementById('lFaceT').textContent='Camera active';}
+  catch(e){toast('Camera denied','err');}
+}
+function stopCam(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  document.getElementById('video').srcObject=null;document.getElementById('camPh').style.display='';
+  document.getElementById('bScan').style.display='none';document.getElementById('bStop').style.display='none';document.getElementById('bStart').style.display='';
+  document.getElementById('bScan').disabled=true;document.getElementById('camBox').classList.remove('scanning');
+  document.getElementById('scanLine').style.opacity='0';document.getElementById('scanPulse').style.display='none';
+  document.getElementById('lFaceT').textContent='Camera off';}
+async function doScan(){
+  const sessId=document.getElementById('sessSel').value;if(!sessId){toast('Select a session','err');return;}
+  document.getElementById('camBox').classList.add('scanning');document.getElementById('scanLine').style.opacity='0.8';
+  document.getElementById('scanPulse').style.display='';document.getElementById('bScan').disabled=true;
+  document.getElementById('resultArea').innerHTML='<div style="text-align:center;padding:30px"><div style="font-size:36px;animation:pulse 1s infinite">🧬</div><div style="color:var(--acc);font-family:monospace;font-size:12px;margin-top:8px;letter-spacing:1px">VERIFYING IDENTITY…</div></div>';
+  const v=document.getElementById('video'),c=document.getElementById('canvas');
+  c.width=v.videoWidth||320;c.height=v.videoHeight||240;c.getContext('2d').drawImage(v,0,0);
+  const image=c.toDataURL('image/jpeg',.85);
+  const r=await api.post('/api/scan',{sessionId:sessId,image,lat:userLat,lng:userLng});
+  document.getElementById('camBox').classList.remove('scanning');document.getElementById('scanLine').style.opacity='0';
+  document.getElementById('scanPulse').style.display='none';document.getElementById('bScan').disabled=false;
+  showResult(r);if(r.ok)loadTodayScans();
+}
+function showResult(r){
+  const el=document.getElementById('resultArea');
+  if(r.ok){el.innerHTML=`<div class="card" style="border:2px solid var(--ok);background:var(--okl)">
+    <div class="flex gap-10 mb-12"><span style="font-size:26px">✅</span><div>
+      <div style="font-weight:800;font-size:15px;color:var(--ok)">Attendance Marked — ${badge(r.status)}</div>
+      <div style="font-size:11px;color:var(--mut)">${new Date().toLocaleTimeString()}</div></div></div>
+    <div style="background:#fff;border-radius:8px;padding:10px;margin-bottom:10px;border:1px solid var(--bdr)">
+      <div style="font-weight:700">${esc(r.studentName)}</div>
+      <div style="font-size:12px;color:var(--mut)">${esc(r.subjectName)}</div></div>
+    <div class="flex mb-4" style="justify-content:space-between"><span style="font-size:11px;color:var(--mut)">CONFIDENCE</span><span style="font-size:13px;font-weight:700;color:var(--ok);font-family:monospace">${r.confidence}%</span></div>
+    ${prog(r.confidence,'var(--ok)',8)}
+    <div class="alert alert-info mt-10" style="font-size:12px">📊 Overall: <strong>${r.rate}%</strong></div></div>
+    <button class="btn btn-ghost w100 mt-8" onclick="document.getElementById('resultArea').innerHTML='<div class=\'empty\'><div class=\'empty-icon\'>🔍</div><p>Awaiting scan…</p></div>'">↺ Scan Again</button>`;
+    toast('✓ Attendance marked — '+r.confidence+'% confidence','ok');}
+  else{el.innerHTML=`<div class="card" style="border:2px solid ${r.lock||r.duplicate?'var(--wrn)':'var(--err)'};background:${r.lock||r.duplicate?'var(--wrnl)':'var(--errl)'}">
+    <div class="flex gap-10 mb-12"><span style="font-size:26px">${r.lock==='time'?'⏰':r.lock==='location'?'📍':r.duplicate?'⚠️':'❌'}</span>
+      <div><div style="font-weight:800;font-size:15px;color:${r.lock||r.duplicate?'var(--wrn)':'var(--err)'}">
+        ${r.duplicate?'Already Marked':r.lock==='time'?'Session Closed':r.lock==='location'?'Location Lock':'Not Recognized'}</div></div></div>
+    <div class="alert alert-${r.lock||r.duplicate?'warn':'error'}">${esc(r.error)}</div>
+    ${!r.lock&&!r.duplicate?`<div class="alert alert-info mt-10" style="font-size:12px">💡 <a href="/student/register-face">Register your face</a> if not done yet</div>`:''}
+    </div><button class="btn btn-ghost w100 mt-8" onclick="document.getElementById('resultArea').innerHTML='<div class=\'empty\'><div class=\'empty-icon\'>🔍</div><p>Awaiting scan…</p></div>'">↺ Try Again</button>`;
+    toast(r.error,'err');}
+}
+async function loadTodayScans(){
+  const today=new Date().toISOString().slice(0,10);
+  const recs=await api.get('/api/attendance?studentId='+UID+'&date='+today);
+  const el=document.getElementById('todayScans');
+  el.innerHTML=recs.length?recs.map(r=>`<div class="flex gap-8 mb-8" style="padding:9px;background:var(--sur2);border-radius:9px;border:1px solid var(--bdr)">
+    <div style="flex:1"><div style="font-weight:600;font-size:13px">${esc(r.subjectName)}</div><div style="font-size:10px;color:var(--mut)">${r.time} · ${r.markedBy}</div></div>
+    ${badge(r.status)}<span style="font-size:10px;font-family:monospace;color:var(--mut)">${r.confidence===100?'Manual':r.confidence+'%'}</span></div>`).join('')
+  :'<div class="empty" style="padding:12px"><div>📋</div><p>No scans today</p></div>';
+}
+boot();
+
+</script></body></html>

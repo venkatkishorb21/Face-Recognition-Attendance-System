@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📋 Attendance Records — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Teacher Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">👨‍🏫 Teacher</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/teacher/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/teacher/sessions"><span class="nav-icon">▶</span>Start Session</a>
+  <a class="nav-link active" href="/teacher/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/teacher/students"><span class="nav-icon">👥</span>My Students</a>
+  <div class="nav-sec">Requests</div>
+  <a class="nav-link " href="/teacher/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/teacher/corrections"><span class="nav-icon">✏</span>Corrections</a>
+  <a class="nav-link " href="/teacher/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/teacher/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">Account</div>
+  <a class="nav-link " href="/teacher/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📋 Attendance Records</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let subs=[],currentSub=null;
+async function boot(){
+  subs=await api.get('/api/subjects');
+  document.getElementById('topExtra').innerHTML='<select id="ss" onchange="onSub()" style="width:200px"><option value="">Select Subject…</option>'+subs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')+'</select>';
+  const sp=new URLSearchParams(window.location.search).get('sub');
+  if(sp){document.getElementById('ss').value=sp;onSub();}
+  else showSubjectList();
+}
+function showSubjectList(){
+  document.getElementById('mainArea').innerHTML='<div class="card"><div class="card-title">📚 Select a Subject to View Attendance</div><div class="sub-grid">'+subs.map(s=>`<div class="sub-card" onclick="document.getElementById('ss').value='${s.id}';onSub()"><div style="font-weight:700;font-size:14px">${esc(s.name)}</div><div style="font-size:11px;color:var(--mut)">${esc(s.code)}</div><div style="font-size:11px;color:var(--acc);margin-top:8px">View attendance →</div></div>`).join('')+'</div></div>';
+}
+async function onSub(){
+  const subId=document.getElementById('ss').value;if(!subId){showSubjectList();return;}
+  currentSub=subId;
+  const data=await api.get('/api/attendance/subject/'+subId);
+  renderSub(data);
+}
+function renderSub(data){
+  const sub=data.subject;
+  document.getElementById('mainArea').innerHTML=`
+    <div class="card mb-14">
+      <div class="card-title">📗 ${esc(sub.name)} (${esc(sub.code)}) — ${data.totalSessions} Sessions Held</div>
+      <div class="flex gap-8 mb-14">
+        <a href="/api/reports/pdf/${sub.id}" target="_blank" class="btn btn-danger btn-sm">📄 PDF Report</a>
+        <a href="/api/reports/csv/${sub.id}" target="_blank" class="btn btn-ghost btn-sm">⬇ CSV</a>
+      </div>
+      <div id="stuList">${data.students.map(s=>`
+        <div class="msg-box mb-8">
+          <div class="flex gap-10" style="cursor:pointer" onclick="toggleDet('d_${s.studentId}')">
+            <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;border:2px solid var(--bdr);flex-shrink:0;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--acc)">
+              ${s.photo?`<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover"/>`:(s.studentName||'?')[0]}</div>
+            <div style="flex:1">
+              <div style="font-weight:700">${esc(s.studentName)}</div>
+              <div style="font-size:11px;color:var(--mut)">${esc(s.rollNo||'—')}</div>
+              <div class="flex gap-6 mt-4">${prog(s.percentage,pctColor(s.percentage),5)}
+                <span style="font-size:11px;font-family:monospace;color:${pctColor(s.percentage)}">${s.percentage}%</span>
+              </div>
+            </div>
+            <div class="flex gap-10 align-items-center">
+              <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--ok)">${s.present}</div><div style="font-size:9px;color:var(--mut)">PRESENT</div></div>
+              <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--err)">${s.absent}</div><div style="font-size:9px;color:var(--mut)">ABSENT</div></div>
+              ${badge(s.status)}
+            </div>
+          </div>
+          <div id="d_${s.studentId}" style="display:none;margin-top:12px;border-top:1px solid var(--bdr);padding-top:10px">
+            <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Confidence</th><th>By</th><th>Action</th></tr></thead>
+            <tbody>${(s.records||[]).map(r=>`<tr>
+              <td style="font-family:monospace">${r.date}</td>
+              <td>${badge(r.status)}</td>
+              <td style="font-family:monospace;font-size:12px">${r.time||'—'}</td>
+              <td style="font-family:monospace;font-size:12px;color:${r.confidence>=55?'var(--ok)':'var(--wrn)'}">${r.confidence===100?'Manual':r.confidence+'%'}</td>
+              <td style="font-size:11px;color:var(--mut)">${esc(r.markedBy)}${r.edited?'<span class="badge b-info" style="margin-left:3px">Edited</span>':''}</td>
+              <td><button class="btn btn-warn btn-xs" onclick="event.stopPropagation();editAtt('${r.id}','${esc(s.studentName)}','${r.date}','${r.status}')">Edit</button></td>
+            </tr>`).join('')}</tbody></table></div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+}
+function toggleDet(id){const e=document.getElementById(id);if(e)e.style.display=e.style.display==='none'?'':'none';}
+function editAtt(id,name,date,status){
+  document.getElementById('mTitle').textContent='✏ Edit: '+name+' — '+date;
+  document.getElementById('mBody').innerHTML=`
+    <div class="alert alert-warn mb-12">Changing attendance from <strong>${status}</strong>. This will be logged with your name and reason.</div>
+    <div class="form-group"><label>New Status</label><select id="ns"><option>Present</option><option>Absent</option><option>Late</option></select></div>
+    <div class="form-group"><label>Reason *</label><input id="rs" placeholder="e.g. Student was present, face recognition failed"/></div>
+    <button class="btn btn-primary w100 mt-8" onclick="saveEdit('${id}')">💾 Save & Log Change</button>`;
+  document.getElementById('ns').value=status;openModal('m1');
+}
+async function saveEdit(id){
+  if(!document.getElementById('rs').value){toast('Enter reason for change','err');return;}
+  const r=await api.put('/api/attendance/'+id,{status:document.getElementById('ns').value,reason:document.getElementById('rs').value});
+  if(r.ok){closeModal('m1');toast('Updated & logged in edit log','ok');if(currentSub){const d=await api.get('/api/attendance/subject/'+currentSub);renderSub(d);}}else toast('Failed','err');
+}
+boot();
+
+</script></body></html>

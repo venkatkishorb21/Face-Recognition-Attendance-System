@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🏖 Leave Requests — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/>
+</head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Teacher Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">👨‍🏫 Teacher</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/teacher/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/teacher/sessions"><span class="nav-icon">▶</span>Start Session</a>
+  <a class="nav-link " href="/teacher/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/teacher/students"><span class="nav-icon">👥</span>My Students</a>
+  <div class="nav-sec">Requests</div>
+  <a class="nav-link active" href="/teacher/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/teacher/corrections"><span class="nav-icon">✏</span>Corrections</a>
+  <a class="nav-link " href="/teacher/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/teacher/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">Account</div>
+  <a class="nav-link " href="/teacher/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">🏖 Leave Requests</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let leaves=[];
+async function boot(){
+  leaves=await api.get('/api/leaves');
+  document.getElementById('topExtra').innerHTML='<select id="f" onchange="render()" style="width:150px"><option value="">All</option><option>Pending</option><option>Approved</option><option>Rejected</option></select>';
+  render();
+}
+function daysBetween(a,b){
+  const d=(new Date(b)-new Date(a))/86400000;
+  return Math.max(1,Math.round(d)+1);
+}
+function render(){
+  const f=document.getElementById('f')?.value||'';
+  const list=f?leaves.filter(l=>l.status===f):leaves;
+  const counts={Pending:0,Approved:0,Rejected:0};leaves.forEach(l=>{if(counts[l.status]!==undefined)counts[l.status]++;});
+  let h='<div class="flex gap-10 mb-14">'+Object.entries(counts).map(([s,c])=>`<div class="stat flex1"><div class="stat-val">${c}</div><div class="stat-lbl">${s.toUpperCase()}</div></div>`).join('')+'</div>';
+  h+=`<div class="card p0 ovh"><div class="tbl-wrap"><table>
+    <thead><tr><th>Student</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${list.length?list.map(l=>`<tr>
+      <td><strong>${esc(l.studentName)}</strong></td>
+      <td style="font-size:12px">${l.subjectId?'📘 '+esc(l.subjectName):'🧭 Full Day (Mentor)'}</td>
+      <td style="font-family:monospace;font-size:12px">${l.fromDate}</td>
+      <td style="font-family:monospace;font-size:12px">${l.toDate}</td>
+      <td style="font-family:monospace;font-size:12px">${daysBetween(l.fromDate,l.toDate)}</td>
+      <td style="font-size:12px;max-width:200px">${esc(l.reason)}${l.hasDocument?' <span class="badge b-info">📄</span>':''}${l.teacherRemark?`<div style="font-size:10px;color:var(--mut);margin-top:2px">💬 ${esc(l.teacherRemark)}</div>`:''}</td>
+      <td>${badge(l.status)}</td>
+      <td>${l.status==='Pending'?`<div class="flex gap-5"><button class="btn btn-success btn-xs" onclick="rev('${l.id}','Approved')">✓</button><button class="btn btn-danger btn-xs" onclick="rev('${l.id}','Rejected')">✗</button></div>`:'—'}</td>
+    </tr>`).join(''):`<tr><td colspan="8"><div class="empty"><div class="empty-icon">🏖</div><p>No leave requests</p></div></td></tr>`}</tbody>
+  </table></div><div class="tbl-foot">${list.length} leave request${list.length===1?'':'s'}</div></div>`;
+  document.getElementById('mainArea').innerHTML=h;
+}
+async function rev(id,status){
+  const remark=status==='Rejected'?prompt('Reason for rejection:','')||'':'';
+  const r=await api.post('/api/leaves/'+id+'/review',{status,remark});
+  if(r.ok){leaves=await api.get('/api/leaves');render();toast(status,'ok');}else toast('Failed','err');
+}
+boot();
+
+</script></body></html>

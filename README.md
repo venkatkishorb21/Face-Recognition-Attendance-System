@@ -1,67 +1,178 @@
-# Face-Recognition-Attendance-System
-FaceAttend Pro is an AI-powered Face Recognition Attendance Management System built with Python, Flask, PostgreSQL, HTML, CSS, and JavaScript. It automates attendance using facial recognition and GPS verification, offering secure role-based access for Admin, Faculty, and Students, along with analytics, reports, and attendance management.
+# FaceAttend Pro v5 — Complete Attendance Management System
 
-1. Overview & Purpose
-FaceAttend Pro v5 is a comprehensive, role-based school/college attendance management system designed to eliminate manual roll-calls and proxy attendance. It replaces traditional attendance register logs with a secure biometric face-scanning client, validated by classroom geofencing (GPS Lock) and an automated session manager.
+## Demo Login Credentials
 
-2. Key Modules & Role Capabilities
+| Role    | Email              | Password    |
+|---------|--------------------|-------------|
+| Admin   | admin@demo.com     | admin123    |
+| Teacher | kumar@demo.com     | teacher123  |
+| Teacher | meera@demo.com     | teacher123  |
+| Student | kavya@demo.com     | student123  |
+| Student | rahul@demo.com     | student123  |
 
-🛡️ Admin Module
+---
 
-The administrator is responsible for high-level management and system settings:
+## Setup (3 Steps)
 
-User Management: Add, update, or delete Teachers and Students.
-Course Setup: Create subjects and assign them to specific teachers.
-Leave Management: Review leave requests submitted by students (viewing details like remarks and reasons).
-System Settings: Set global thresholds (attendance percentage warning threshold, GPS radius, face-scanning confidence limit).
-Audit Trail: Access attendance_edit_logs to monitor who changed whose attendance, when, and why.
-Reports: Generate and export reports (PDF + CSV format).
+### 1. Install dependencies
+```bash
+pip install -r requirements.txt
+```
 
-👨‍🏫 Teacher Module
+> face-recognition needs cmake:
+> - Mac: `brew install cmake`
+> - Ubuntu: `sudo apt install cmake build-essential`
+> - If it fails the app auto-falls back to pixel comparison
 
-Teachers manage class schedules and review attendance:
+### 2. Create PostgreSQL database
+```bash
+# Option A: local postgres
+createdb faceattend_v5
 
-Start Sessions: Select a subject and start an attendance window, specifying a custom duration (e.g., 60 minutes) and classroom coordinates.
-Manage Sessions: Reopen today's closed sessions, manually close a session, or extend active sessions (+15/30 minutes).
-Correction Logs: Edit a student's attendance records (Absent ↔ Present) by writing a mandatory reason, which is automatically saved to the audit trail.
-Leaves & Correction Requests: Approve or reject leave applications and attendance correction requests from students.
+# Option B: Docker
+docker run --name facedb \
+  -e POSTGRES_DB=faceattend_v5 \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -p 5432:5432 -d postgres:15
+```
 
-🎓 Student Module
+### 3. Edit .env then Run
+```bash
+# Edit DB_PASSWORD in .env first
+python app.py
+```
 
-Students access a personal portal to scan and verify their presence:
+Open:
+- Student: http://localhost:5000/student/login
+- Teacher: http://localhost:5000/teacher/login
+- Admin:   http://localhost:5000/admin/login
 
-Register Face: Captures a webcam image and runs the neural network encoder to extract a unique biometric key.
-Attendance Scan: Scans face to verify identity during active classes. Must be inside the classroom GPS geofencing radius.
-Attendance Dashboard: Displays progress rings for attendance percentages per subject and flags subjects falling below the warning threshold (e.g., <75%).
-Requests & Leaves: Apply for leaves (with date ranges and document uploads) and request corrections if face matching failed.
+---
 
-3. Technology Stack & Mechanics
-   
-Backend: Flask web application in 
-app.py
-/faceattend_v5/app.py) using SQLite database configuration.
-Frontend: Dynamic UI built using HTML5, CSS, and Vanilla JavaScript. Includes webcam streaming via WebRTC API and GPS tracking via HTML5 Geolocation API.
-Face Recognition:
-Primary Model: Uses dlib to detect faces and maps 68 key points into a 128-dimensional floating-point vector. The similarity is measured using Euclidean Distance.
-Fallback Model: Resizes images to 20×20 grayscale matrices and evaluates similarity using Normalized Cross-Correlation (NCC).
-GPS Validation: Computes student-to-teacher distance using the Haversine Formula to prevent out-of-classroom check-ins.
-Background Process: An asynchronous thread runs a daemon worker every 30 seconds to close expired sessions and auto-mark absent students.
+## All Features
 
-5. Code & File Structure
-The project contains the following primary files and directories:
+### 🛡 Admin Module
+- Login with own credentials
+- Add / Edit / Delete Teachers
+- Add / Edit / Delete Students (deleted = archived)
+- Add / Edit / Delete Subjects
+- Assign subjects to teachers
+- View all attendance records
+- View all leave requests + approve/reject
+- View full edit logs (who changed what, when, why)
+- Generate PDF + CSV reports per subject
+- System settings (thresholds, GPS, duration, face confidence)
+- Export full attendance data CSV
 
-app.py
-/faceattend_v5/app.py): Contains the main application controller, database models, Flask routing (Auth, Admin, Teacher, Student, APIs), biometric comparison modules, and background threads.
-.env
-/faceattend_v5/.env): System environment variables configuring the database URL (sqlite:///faceattend.db), server port, and session secret keys.
-requirements.txt
-/faceattend_v5/requirements.txt): List of dependencies (flask, flask-sqlalchemy, dlib, face-recognition, numpy, pillow, reportlab, etc.).
-templates/: Contains the HTML templates separated by user dashboard roles:
-auth/: Login interface.
-admin/: Manage users, settings, and logs.
-teacher/: Live sessions, corrections, and profile.
-student/: Face register, scan, and leaves.
-static/: Contains CSS styling (static/css/style.css) and modular Javascript APIs (static/js/shared.js).
+### 👨‍🏫 Teacher Module (3 teachers, each sees only their subjects)
+- Login with own credentials
+- **Start Session** — select subject, set duration (e.g. 60 min)
+- **Auto-close** — session closes automatically after duration
+- **Auto-absent** — students who didn't scan = Absent automatically
+- **Extend session** — +15 or +30 minutes if needed
+- **Reopen session** — reopen today's closed session
+- **View session** — see who's present/absent per session
+- **Edit attendance** — change Absent→Present with mandatory reason
+- **Every edit logged** — stored in correction log with name + time
+- **Manage Students** — add/edit/delete (archived on delete)
+- **Leave Requests** — approve or reject with remark
+- **Correction Requests** — approve → auto-marks Present
+- **Edit Logs** — full audit trail of own changes
+- **Reports** — PDF + CSV per subject
+- **Profile** — edit own name, phone, password
 
+### 🎓 Student Module
+- Login with own credentials
+- **Register Face** — capture photo, AI extracts 128-D embedding
+- **Scan Attendance** — face scan verifies identity, marks Present/Late
+- **Time Lock** — can only scan during active session
+- **GPS Lock** — must be within classroom radius
+- **Dashboard** — subject cards with attendance % ring charts
+- **Subject-wise Attendance** — click subject → see all dates + status
+- **Request Correction** — submit message if face recognition failed
+- **Apply Leave** — with date range, reason, optional document upload
+- **View Leave Status** — Pending / Approved / Rejected
+- **Profile** — edit name and phone
 
-FaceAttend Pro is designed as a lightweight, scalable, and user-friendly application, making it an ideal solution for educational institutions and an excellent MCA final-year project that demonstrates practical applications of Artificial Intelligence, Computer Vision, and Web Development.
+### 🤖 Auto Features
+- Session auto-closes after set duration (background thread checks every 30s)
+- All unscanned students auto-marked Absent on close
+- Students notified when marked absent
+- Students notified when below attendance threshold
+- Teachers notified on new leave requests
+
+### 🗂 Archive Feature
+- When admin or teacher deletes a student:
+  - Student is removed from active list
+  - All attendance records preserved (foreign key with cascade)
+  - Student info saved in archived_students table
+  - Admin can view archive anytime
+
+---
+
+## Project Structure
+```
+faceattend_v5/
+├── app.py                    # All Flask routes + models + AI + background thread
+├── requirements.txt
+├── .env                      # DB credentials
+├── README.md
+├── data/
+│   └── system_settings.json  # System config (auto-created)
+├── templates/
+│   ├── auth/login.html        # Shared login page for all roles
+│   ├── admin/
+│   │   ├── dashboard.html
+│   │   ├── teachers.html
+│   │   ├── students.html
+│   │   ├── subjects.html
+│   │   ├── attendance.html
+│   │   ├── leaves.html
+│   │   ├── logs.html
+│   │   ├── reports.html
+│   │   └── settings.html
+│   ├── teacher/
+│   │   ├── dashboard.html
+│   │   ├── sessions.html      # Start/close/extend sessions + auto-absent
+│   │   ├── attendance.html    # Student-wise, click to expand records + edit
+│   │   ├── students.html      # Add/edit/delete students + view full profile
+│   │   ├── leaves.html        # Approve/reject leave requests
+│   │   ├── corrections.html   # Review attendance corrections
+│   │   ├── logs.html          # My edit history
+│   │   ├── reports.html       # PDF + CSV reports
+│   │   └── profile.html       # Edit own profile + password
+│   └── student/
+│       ├── dashboard.html     # Subject cards + active sessions
+│       ├── register_face.html # Webcam face capture + AI encoding
+│       ├── scan.html          # Face scan during active session
+│       ├── attendance.html    # Subject-wise records + correction request
+│       ├── leaves.html        # Apply + view leave status
+│       └── profile.html       # Edit basic profile
+└── static/
+    ├── css/style.css
+    └── js/shared.js
+```
+
+---
+
+## Database Tables
+```
+admins               — id, name, email, password_hash
+teachers             — id, name, email, password_hash, department, phone, qualification
+students             — id, name, email, password_hash, roll_no, department, year,
+                       phone, photo, face_encoding (JSON 128-D), face_registered, status
+archived_students    — id, name, email, roll_no, department, deleted_by, deleted_at, reason
+subjects             — id, name, code, teacher_id (FK), department, semester, credits
+class_sessions       — id, subject_id, teacher_id, date, start_time, end_time,
+                       duration_minutes, auto_close_at, status, room, lat, lng, radius,
+                       auto_absent_done, total_students, present_count
+attendance           — id, student_id, subject_id, session_id, date, time, status,
+                       marked_by, confidence, remarks, original_status, edited
+attendance_edit_logs — id, attendance_id, student_name, subject_name, date,
+                       old_status, new_status, modified_by, modified_by_role, reason, modified_at
+leave_requests       — id, student_id, subject_id, from_date, to_date, reason,
+                       document_b64, status, teacher_remark, reviewed_by, reviewed_at
+correction_requests  — id, student_id, attendance_id, subject_id, date, message,
+                       current_status, status, teacher_remark, reviewed_by
+notifications        — id, user_id, role, msg, type, read, created_at
+```

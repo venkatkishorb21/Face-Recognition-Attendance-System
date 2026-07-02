@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📋 My Attendance — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Student Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">🎓 Student</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/student/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/student/register-face"><span class="nav-icon">📷</span>Register Face</a>
+  <a class="nav-link " href="/student/scan"><span class="nav-icon">👁</span>Scan Attendance</a>
+  <a class="nav-link active" href="/student/attendance"><span class="nav-icon">📋</span>My Attendance</a>
+  <a class="nav-link " href="/student/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/student/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">📋 My Attendance</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+let summary=[], currentSub=null, allRecs=[];
+async function boot(){
+  summary=await api.get('/api/attendance/summary/'+UID);
+  const sp=new URLSearchParams(window.location.search).get('sub');
+  document.getElementById('mainArea').innerHTML=`<div class="card mb-14"><div class="card-title">📚 My Subjects — Click to view details</div><div class="sub-grid" id="subGrid"></div></div><div id="detailArea"></div>`;
+  renderSubjects();
+  if(sp)loadDetail(sp);
+}
+function renderSubjects(){
+  let totalP=0,totalA=0,totalC=0;summary.forEach(s=>{totalP+=s.present;totalA+=s.absent;totalC+=s.totalClasses;});
+  const overall=totalC?Math.round(totalP/totalC*100):0;
+  const g=document.getElementById('subGrid');
+  g.innerHTML=summary.length?summary.map(s=>`<div class="sub-card ${s.percentage<75?'atrisk':''}" onclick="loadDetail('${s.subjectId}')">
+    <div class="flex gap-10 mb-10">${pctRing(s.percentage,68)}<div>
+      <div style="font-weight:700;font-size:13px">${esc(s.subjectName)}</div>
+      <div style="font-size:10px;color:var(--mut);margin-bottom:4px">${esc(s.subjectCode)} · ${esc(s.teacherName)}</div>
+      ${badge(s.status)}</div></div>
+    <div class="flex gap-10 mb-8">
+      <div style="text-align:center"><div style="font-size:17px;font-weight:800;color:var(--ok)">${s.present}</div><div style="font-size:9px;color:var(--mut)">PRESENT</div></div>
+      <div style="text-align:center"><div style="font-size:17px;font-weight:800;color:var(--err)">${s.absent}</div><div style="font-size:9px;color:var(--mut)">ABSENT</div></div>
+      <div style="text-align:center"><div style="font-size:17px;font-weight:800">${s.totalClasses}</div><div style="font-size:9px;color:var(--mut)">TOTAL</div></div>
+    </div>${prog(s.percentage,pctColor(s.percentage),7)}
+    ${s.percentage<75?'<div style="font-size:10px;color:var(--err);margin-top:5px;font-weight:700">⚠ Below 75%</div>':''}
+  </div>`).join('')+'<div class="sub-card" style="border:2px dashed var(--bdr);cursor:default;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px"><div style="font-size:24px">📈</div><div style="font-weight:700;font-size:14px;color:var(--acc)">'+overall+'%</div><div style="font-size:11px;color:var(--mut)">Overall Attendance</div></div>'
+  :'<div class="empty"><div class="empty-icon">📚</div><p>No attendance records yet</p></div>';
+}
+async function loadDetail(subId){
+  currentSub=subId;
+  const sub=summary.find(s=>s.subjectId===subId);
+  allRecs=await api.get('/api/attendance?studentId='+UID+'&subjectId='+subId);
+  const da=document.getElementById('detailArea');
+  da.innerHTML=`<div class="card anim">
+    <div class="flex gap-10 mb-14">
+      <div class="card-title m0">${sub?esc(sub.subjectName):'Subject'} — All Records</div>
+      <button class="btn btn-ghost btn-sm ml-auto" onclick="document.getElementById('detailArea').innerHTML=''">✕</button>
+    </div>
+    <div class="flex gap-10 mb-14 flexwrap">
+      <div class="stat" style="min-width:100px"><div class="stat-val txt-acc">${sub?sub.percentage:0}%</div><div class="stat-lbl">Attendance</div></div>
+      <div class="stat" style="min-width:100px"><div class="stat-val txt-ok">${sub?sub.present:0}</div><div class="stat-lbl">Present</div></div>
+      <div class="stat" style="min-width:100px"><div class="stat-val txt-err">${sub?sub.absent:0}</div><div class="stat-lbl">Absent</div></div>
+      <div class="stat" style="min-width:100px"><div class="stat-val">${sub?sub.totalClasses:0}</div><div class="stat-lbl">Total</div></div>
+      ${sub&&sub.percentage<75?'<div class="alert alert-error" style="flex:2;margin:0">⚠ Attendance below 75% minimum!</div>':''}
+    </div>
+    <div class="flex gap-8 mb-10"><select id="fSt" onchange="filterRecs()" style="width:150px"><option value="">All Status</option><option>Present</option><option>Absent</option><option>Late</option></select></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Confidence</th><th>Marked By</th><th>Action</th></tr></thead>
+    <tbody id="recBody">${renderRecRows(allRecs)}</tbody></table></div>
+  </div>`;
+  da.scrollIntoView({behavior:'smooth'});
+}
+function filterRecs(){const f=document.getElementById('fSt')?.value||'';const list=f?allRecs.filter(r=>r.status===f):allRecs;document.getElementById('recBody').innerHTML=renderRecRows(list);}
+function renderRecRows(recs){return recs.length?recs.map(r=>`<tr>
+  <td style="font-family:monospace;font-weight:600">${r.date}</td><td>${badge(r.status)}</td>
+  <td style="font-family:monospace;font-size:12px">${r.time||'—'}</td>
+  <td style="font-family:monospace;font-size:12px;color:${r.confidence>=55?'var(--ok)':'var(--wrn)'}">${r.confidence===100?'Manual':r.confidence+'%'}</td>
+  <td style="font-size:11px;color:var(--mut)">${esc(r.markedBy)}${r.edited?'<span class="badge b-info" style="margin-left:4px">Edited</span>':''}</td>
+  <td>${r.status==='Absent'?`<button class="btn btn-warn btn-xs" onclick="openCorr('${r.id}','${r.subjectId}','${r.date}','${r.status}')">Request Correction</button>`:'—'}</td>
+</tr>`).join(''):'<tr><td colspan="6" class="empty"><div>📋</div>No records</td></tr>';}
+function openCorr(attId,subId,date,status){
+  document.getElementById('mTitle').textContent='📝 Request Attendance Correction';
+  document.getElementById('mBody').innerHTML=`<div class="alert alert-info mb-12">Submit this to your teacher. They will verify and update if valid.</div>
+    <div class="form-group"><label>Date</label><input id="cDate" value="${date}" readonly/></div>
+    <div class="form-group"><label>Current Status</label><input id="cSt" value="${status}" readonly/></div>
+    <div class="form-group"><label>Your Message *</label><textarea id="cMsg" rows="4">Sir/Madam, I attended the class but face recognition failed. Kindly verify and update my attendance.</textarea></div>
+    <button class="btn btn-primary w100" onclick="submitCorr('${attId}','${subId}','${date}','${status}')">📤 Submit Request</button>`;
+  openModal('m1');
+}
+async function submitCorr(attId,subId,date,status){
+  const msg=document.getElementById('cMsg').value.trim();if(!msg){toast('Enter message','err');return;}
+  const r=await api.post('/api/corrections',{attendanceId:attId,subjectId:subId,date,currentStatus:status,message:msg});
+  if(r.ok){closeModal('m1');toast('Correction request submitted successfully.','ok');}else toast(r.error||'Failed','err');
+}
+boot();
+
+</script></body></html>

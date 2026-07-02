@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🏠 Student Dashboard — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Student Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">🎓 Student</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link active" href="/student/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/student/register-face"><span class="nav-icon">📷</span>Register Face</a>
+  <a class="nav-link " href="/student/scan"><span class="nav-icon">👁</span>Scan Attendance</a>
+  <a class="nav-link " href="/student/attendance"><span class="nav-icon">📋</span>My Attendance</a>
+  <a class="nav-link " href="/student/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/student/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">🏠 Student Dashboard</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+async function boot(){
+  const [me,summary,active]=await Promise.all([api.get('/api/me'),api.get('/api/attendance/summary/'+UID),api.get('/api/sessions/active')]);
+  document.getElementById('mainArea').innerHTML=`
+    <div class="card mb-14" style="background:linear-gradient(135deg,#1A7FD4,#0E5FA0);color:#fff;border:none">
+      <div class="flex gap-10">
+        <div style="width:52px;height:52px;border-radius:50%;background:#ffffff33;border:2px solid #ffffff66;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;overflow:hidden;flex-shrink:0">
+          ${me.photo?`<img src="${me.photo}" style="width:100%;height:100%;object-fit:cover"/>`:me.name?me.name[0]:'?'}</div>
+        <div><div style="font-size:17px;font-weight:800">${esc(me.name||'')}</div>
+          <div style="font-size:12px;opacity:.8">${esc(me.rollNo||'')} · ${esc(me.department||'')} · Year ${me.year}</div>
+          <div style="margin-top:6px;font-size:12px">${me.faceRegistered?'<span style="background:#ffffff33;padding:2px 10px;border-radius:10px">✓ Face Registered</span>':'<span style="background:#ff000044;padding:2px 10px;border-radius:10px">⚠ <a href="/student/register-face" style="color:#fff;text-decoration:underline">Register Face First</a></span>'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="stats-row" id="sRow"></div>
+    <div class="card mb-14"><div class="card-title flex gap-8">🟢 Active Sessions <span class="badge b-approved" id="actCt">0</span></div><div id="actSess"></div></div>
+    <div class="card"><div class="card-title">📚 Subject-wise Attendance</div><div class="sub-grid" id="subGrid"></div></div>`;
+
+  let totalP=0,totalA=0,totalC=0;
+  summary.forEach(s=>{totalP+=s.present;totalA+=s.absent;totalC+=s.totalClasses;});
+  const overallRate=totalC?Math.round(totalP/totalC*100):0;
+  document.getElementById('sRow').innerHTML=[
+    {l:'Subjects',v:summary.length,i:'📚',c:'var(--acc)'},
+    {l:'Total Present',v:totalP,i:'✅',c:'var(--ok)'},
+    {l:'Total Absent',v:totalA,i:'❌',c:'var(--err)'},
+    {l:'Overall %',v:overallRate+'%',i:'📈',c:pctColor(overallRate)},
+  ].map(s=>`<div class="stat"><div class="stat-icon">${s.i}</div><div class="stat-val" style="color:${s.c}">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+
+  document.getElementById('actCt').textContent=active.length;
+  document.getElementById('actSess').innerHTML=active.length?active.map(s=>`<div class="sess-card sess-active flex gap-10 flexwrap">
+    <div style="flex:1"><div style="font-weight:700">${esc(s.subjectName)}</div>
+      <div style="font-size:11px;color:var(--mut)">Room: ${esc(s.room||'—')} · ${renderCountdown(s.remainingMinutes)}</div></div>
+    <a href="/student/scan?sess=${s.id}" class="btn btn-success btn-sm">📷 Scan Now</a>
+  </div>`).join(''):'<div class="empty" style="padding:14px"><div>📅</div><p>No active sessions right now</p></div>';
+
+  document.getElementById('subGrid').innerHTML=summary.length?summary.map(s=>`<div class="sub-card ${s.percentage<75?'atrisk':''}" onclick="window.location='/student/attendance?sub=${s.subjectId}'">
+    <div class="flex gap-10 mb-10">${pctRing(s.percentage,68)}<div>
+      <div style="font-weight:700;font-size:14px">${esc(s.subjectName)}</div>
+      <div style="font-size:11px;color:var(--mut);margin-bottom:4px">${esc(s.subjectCode)}</div>
+      ${badge(s.status)}</div></div>
+    <div class="flex gap-14 mb-8">
+      <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--ok)">${s.present}</div><div style="font-size:9px;color:var(--mut)">PRESENT</div></div>
+      <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--err)">${s.absent}</div><div style="font-size:9px;color:var(--mut)">ABSENT</div></div>
+      <div style="text-align:center"><div style="font-size:18px;font-weight:800">${s.totalClasses}</div><div style="font-size:9px;color:var(--mut)">TOTAL</div></div>
+    </div>
+    ${prog(s.percentage,pctColor(s.percentage),7)}
+    ${s.percentage<75?'<div style="font-size:10px;color:var(--err);margin-top:6px;font-weight:700">⚠ Below 75% — apply leave or attend more classes</div>':''}
+  </div>`):'<div class="empty"><div class="empty-icon">📚</div><p>No attendance records yet</p></div>';
+  loadNotifBadge(UID);
+}
+boot();
+
+</script></body></html>

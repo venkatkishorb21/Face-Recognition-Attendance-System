@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Students — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Admin Portal</div><div class="user">{{ name }}</div><div class="role-badge">🛡 Admin</div></div>
+  <div class="nav-sec">Overview</div><a class="nav-link" href="/admin/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <div class="nav-sec">Manage</div>
+  <a class="nav-link" href="/admin/teachers"><span class="nav-icon">👨‍🏫</span>Teachers</a>
+  <a class="nav-link active" href="/admin/students"><span class="nav-icon">👥</span>Students</a>
+  <a class="nav-link" href="/admin/subjects"><span class="nav-icon">📚</span>Subjects</a>
+  <div class="nav-sec">Reports</div>
+  <a class="nav-link" href="/admin/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link" href="/admin/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link" href="/admin/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link" href="/admin/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">System</div><a class="nav-link" href="/admin/settings"><span class="nav-icon">⚙</span>Settings</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+  <div class="topbar">
+    <div class="topbar-title">👥 Manage Students</div>
+    <div class="flex gap-8 ml-auto">
+      <input id="q" placeholder="🔍 Search…" style="width:180px" oninput="render()"/>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">➕ Add Student</button>
+    </div>
+  </div>
+  <div class="card p0 ovh">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Student</th><th>Roll No</th><th>Dept</th><th>Year</th><th>Mentor</th><th>Face</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="tbody"></tbody></table></div>
+    <div class="tbl-foot" id="foot"></div>
+  </div>
+  <div class="card mt-14">
+    <div class="card-title">🗂 Archived Students (Deleted)</div>
+    <div id="archiveList"></div>
+  </div>
+</main></div>
+
+<div class="modal-bg" id="addModal" onclick="bgClose(event,'addModal')">
+  <div class="modal"><div class="modal-hdr"><h3>➕ Add Student</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('addModal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group fg2"><label>Student ID *</label><input id="aId" placeholder="STU010"/></div>
+      <div class="form-group fg2"><label>Full Name *</label><input id="aName" placeholder="Full Name"/></div>
+      <div class="form-group fg2"><label>Email *</label><input id="aEmail" type="email" placeholder="student@uni.edu"/></div>
+      <div class="form-group"><label>Roll No</label><input id="aRoll" placeholder="CS010"/></div>
+      <div class="form-group"><label>Department</label><input id="aDept" placeholder="CSE"/></div>
+      <div class="form-group"><label>Year</label><select id="aYear"><option value="1">Year 1</option><option value="2">Year 2</option><option value="3">Year 3</option><option value="4">Year 4</option></select></div>
+      <div class="form-group"><label>Phone</label><input id="aPhone" placeholder="9100000000"/></div>
+      <div class="form-group fg2"><label>Password</label><input id="aPass" type="password" value="student123"/></div>
+    </div>
+    <button class="btn btn-primary w100 mt-8" onclick="addStudent()">✅ Add Student</button>
+  </div>
+</div>
+<div class="modal-bg" id="editModal" onclick="bgClose(event,'editModal')">
+  <div class="modal"><div class="modal-hdr"><h3>✏ Edit Student</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('editModal')">✕</button></div>
+    <input type="hidden" id="eId"/>
+    <div class="form-grid">
+      <div class="form-group fg2"><label>Full Name</label><input id="eName"/></div>
+      <div class="form-group fg2"><label>Email</label><input id="eEmail" type="email"/></div>
+      <div class="form-group"><label>Roll No</label><input id="eRoll"/></div>
+      <div class="form-group"><label>Department</label><input id="eDept"/></div>
+      <div class="form-group"><label>Year</label><select id="eYear"><option value="1">Year 1</option><option value="2">Year 2</option><option value="3">Year 3</option><option value="4">Year 4</option></select></div>
+      <div class="form-group"><label>Phone</label><input id="ePhone"/></div>
+      <div class="form-group"><label>Status</label><select id="eStatus"><option>Active</option><option>Inactive</option></select></div>
+    </div>
+    <button class="btn btn-primary w100 mt-8" onclick="saveEdit()">💾 Save Changes</button>
+  </div>
+</div>
+<div class="modal-bg" id="mentorModal" onclick="bgClose(event,'mentorModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🧭 Assign Mentor</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('mentorModal')">✕</button></div>
+    <input type="hidden" id="mStudentId"/>
+    <p id="mStudentName" style="font-size:13px;color:var(--mut);margin-bottom:12px"></p>
+    <div class="form-group"><label>Mentor (Teacher)</label>
+      <select id="mTeacher"><option value="">— No mentor —</option></select></div>
+    <p style="font-size:11px;color:var(--mut);margin-bottom:12px">Full-day leave requests from this student (with no specific subject selected) will be sent to this mentor for approval.</p>
+    <button class="btn btn-primary w100 mt-8" onclick="saveMentor()">💾 Save Mentor</button>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+let students=[], teachers=[];
+async function boot(){
+  [students,teachers]=await Promise.all([api.get('/api/students'),api.get('/api/admin/teachers')]);
+  $('mTeacher').innerHTML='<option value="">— No mentor —</option>'+teachers.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  render();
+  loadArchive();
+}
+function render(){
+  const q=($('q')?.value||'').toLowerCase();
+  const list=students.filter(s=>s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q)||(s.rollNo||'').toLowerCase().includes(q));
+  $('tbody').innerHTML=list.map(s=>`<tr>
+    <td><div class="flex gap-8">
+      <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;border:2px solid var(--bdr);flex-shrink:0;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--acc)">
+        ${s.photo?`<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover"/>`:s.name[0]}</div>
+      <div><div style="font-weight:600">${esc(s.name)}</div><div style="font-size:10px;color:var(--mut)">${esc(s.email)}</div></div>
+    </div></td>
+    <td style="font-family:monospace">${esc(s.rollNo||'—')}</td>
+    <td>${esc(s.department||'—')}</td>
+    <td style="font-family:monospace">Y${s.year}</td>
+    <td>${s.mentorName?`<span class="badge b-info">${esc(s.mentorName)}</span>`:'<span style="color:var(--mut);font-size:11px">— none —</span>'}</td>
+    <td>${s.faceRegistered?'<span class="badge b-approved">✓ Yes</span>':'<span class="badge b-absent">✗ No</span>'}</td>
+    <td>${badge(s.status)}</td>
+    <td><div class="flex gap-5">
+      <button class="btn btn-outline btn-xs" onclick="openEdit('${s.id}')">Edit</button>
+      <button class="btn btn-ghost btn-xs" onclick="openMentor('${s.id}')">Mentor</button>
+      <button class="btn btn-danger btn-xs" onclick="del('${s.id}','${esc(s.name)}')">Delete</button>
+    </div></td>
+  </tr>`).join('');
+  $('foot').textContent=`${list.length} of ${students.length} students · ${students.filter(s=>s.faceRegistered).length} faces registered`;
+}
+async function addStudent(){
+  const id=$('aId').value.trim().toUpperCase();
+  if(!id||!$('aName').value||!$('aEmail').value){toast('Fill required fields','err');return;}
+  const res=await api.post('/api/students',{id,name:$('aName').value,email:$('aEmail').value,
+    rollNo:$('aRoll').value,department:$('aDept').value,year:$('aYear').value,
+    phone:$('aPhone').value,password:$('aPass').value||'student123'});
+  if(res.ok){students=await api.get('/api/students');render();closeModal('addModal');toast('Student added','ok');}
+  else toast(res.error||'Failed','err');
+}
+function openEdit(id){
+  const s=students.find(x=>x.id===id);if(!s)return;
+  $('eId').value=s.id;$('eName').value=s.name;$('eEmail').value=s.email;
+  $('eRoll').value=s.rollNo||'';$('eDept').value=s.department||'';
+  $('eYear').value=s.year||1;$('ePhone').value=s.phone||'';$('eStatus').value=s.status;
+  openModal('editModal');
+}
+async function saveEdit(){
+  const id=$('eId').value;
+  const res=await api.put(`/api/students/${id}`,{name:$('eName').value,email:$('eEmail').value,
+    roll_no:$('eRoll').value,department:$('eDept').value,year:parseInt($('eYear').value),
+    phone:$('ePhone').value,status:$('eStatus').value});
+  if(res.ok){students=await api.get('/api/students');render();closeModal('editModal');toast('Updated','ok');}
+  else toast('Failed','err');
+}
+function openMentor(id){
+  const s=students.find(x=>x.id===id);if(!s)return;
+  $('mStudentId').value=s.id;
+  $('mStudentName').textContent=`${s.name} (${s.rollNo||s.id})`;
+  $('mTeacher').value=s.mentorId||'';
+  openModal('mentorModal');
+}
+async function saveMentor(){
+  const id=$('mStudentId').value;
+  const res=await api.post(`/api/admin/students/${id}/mentor`,{teacherId:$('mTeacher').value||null});
+  if(res.ok){students=await api.get('/api/students');render();closeModal('mentorModal');toast('Mentor updated','ok');}
+  else toast(res.error||'Failed','err');
+}
+async function del(id,name){
+  const reason=prompt(`Delete ${name}?\nEnter reason (or Cancel to abort):`);
+  if(reason===null)return;
+  const res=await api.del(`/api/students/${id}`,{reason});
+  if(res.ok){students=await api.get('/api/students');render();loadArchive();toast('Student archived & deleted','ok');}
+  else toast('Failed','err');
+}
+async function restoreStudent(id){
+  if(!confirm('Restore this student? They will become Active again with all their attendance history.'))return;
+  const res=await api.post(`/api/admin/archived/${id}/restore`,{});
+  if(res.ok){students=await api.get('/api/students');render();loadArchive();toast('Student restored','ok');}
+  else toast(res.error||'Failed','err');
+}
+async function loadArchive(){
+  const list=await api.get('/api/admin/archived');
+  $('archiveList').innerHTML=list.length?`<div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Name</th><th>Roll No</th><th>Dept</th><th>Deleted By</th><th>Deleted At</th><th>Action</th></tr></thead>
+    <tbody>${list.map(a=>`<tr>
+      <td style="font-family:monospace">${esc(a.id)}</td><td>${esc(a.name)}</td>
+      <td>${esc(a.rollNo||'—')}</td><td>${esc(a.department||'—')}</td>
+      <td>${esc(a.deletedBy)}</td><td style="font-size:11px">${esc(a.deletedAt)}</td>
+      <td><button class="btn btn-success btn-xs" onclick="restoreStudent('${a.id}')">↺ Restore</button></td>
+    </tr>`).join('')}</tbody></table></div>`
+  :'<div class="empty"><div class="empty-icon">🗂</div><p>No archived students</p></div>';
+}
+boot();
+</script></body></html>

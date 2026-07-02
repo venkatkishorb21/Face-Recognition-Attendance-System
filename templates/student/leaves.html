@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🏖 Leave Requests — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Student Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">🎓 Student</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/student/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/student/register-face"><span class="nav-icon">📷</span>Register Face</a>
+  <a class="nav-link " href="/student/scan"><span class="nav-icon">👁</span>Scan Attendance</a>
+  <a class="nav-link " href="/student/attendance"><span class="nav-icon">📋</span>My Attendance</a>
+  <a class="nav-link active" href="/student/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/student/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">🏖 Leave Requests</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+async function boot(){
+  const [subs,leaves]=await Promise.all([api.get('/api/subjects'),api.get('/api/leaves')]);
+  window._subs=subs;
+  document.getElementById('topExtra').innerHTML='<button class="btn btn-primary btn-sm" onclick="openApply()">+ Apply Leave</button>';
+  renderLeaves(leaves);
+}
+function daysBetween(a,b){
+  const d=(new Date(b)-new Date(a))/86400000;
+  return Math.max(1,Math.round(d)+1);
+}
+function renderLeaves(leaves){
+  const counts={Pending:0,Approved:0,Rejected:0};leaves.forEach(l=>{if(counts[l.status]!==undefined)counts[l.status]++;});
+  document.getElementById('mainArea').innerHTML=`
+    <div class="flex gap-10 mb-14">
+      <div class="stat flex1"><div class="stat-val">${counts.Pending}</div><div class="stat-lbl">PENDING</div></div>
+      <div class="stat flex1"><div class="stat-val">${counts.Approved}</div><div class="stat-lbl">APPROVED</div></div>
+      <div class="stat flex1"><div class="stat-val">${counts.Rejected}</div><div class="stat-lbl">REJECTED</div></div>
+    </div>
+    <div class="card p0 ovh"><div class="tbl-wrap"><table>
+      <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Submitted</th><th>Status</th></tr></thead>
+      <tbody>${leaves.length?leaves.map(l=>`<tr>
+        <td style="font-size:12px">${l.subjectId?'📘 '+esc(l.subjectName):'🧭 Full Day'}${l.hasDocument?' <span class="badge b-info">📄</span>':''}</td>
+        <td style="font-family:monospace;font-size:12px">${l.fromDate}</td>
+        <td style="font-family:monospace;font-size:12px">${l.toDate}</td>
+        <td style="font-family:monospace;font-size:12px">${daysBetween(l.fromDate,l.toDate)}</td>
+        <td style="font-size:12px;max-width:220px">${esc(l.reason)}${l.teacherRemark?`<div style="font-size:10px;color:var(--mut);margin-top:2px">💬 ${esc(l.teacherRemark)}</div>`:''}</td>
+        <td style="font-family:monospace;font-size:11px;color:var(--mut)">${l.submittedAt}</td>
+        <td>${badge(l.status)}</td>
+      </tr>`).join(''):`<tr><td colspan="7"><div class="empty"><div class="empty-icon">🏖</div><p>No leave requests yet</p></div></td></tr>`}</tbody>
+    </table></div><div class="tbl-foot">${leaves.length} leave request${leaves.length===1?'':'s'}</div></div>`;
+}
+let docB64=null;
+function openApply(subs){
+  document.getElementById('mTitle').textContent='🏖 Apply for Leave';
+  document.getElementById('mBody').innerHTML=`
+    <div class="alert alert-info" style="font-size:12px">Leave for a specific subject goes to that subject's teacher. Leave with no subject selected (a full day off) goes to your assigned mentor.</div>
+    <div class="form-group"><label>Subject (leave blank for a full-day leave)</label><select id="lvSub"><option value="">Full Day — send to my Mentor</option>${(subs||window._subs||[]).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
+    <div class="form-grid">
+      <div class="form-group"><label>From Date *</label><input id="lvF" type="date"/></div>
+      <div class="form-group"><label>To Date *</label><input id="lvT" type="date"/></div>
+    </div>
+    <div class="form-group"><label>Reason *</label><textarea id="lvR" rows="4" placeholder="Explain reason for leave…"></textarea></div>
+    <div class="form-group"><label>Upload Document (Optional)</label><input type="file" id="lvDoc" accept=".pdf,.jpg,.png" onchange="readDoc(this)" style="font-size:12px"/></div>
+    <button class="btn btn-primary w100 mt-8" onclick="submitLeave()">📤 Submit Leave Request</button>`;
+  docB64=null;openModal('m1');
+}
+function readDoc(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{docB64=e.target.result;toast('Document loaded','ok');};r.readAsDataURL(f);}
+async function submitLeave(){
+  const from=document.getElementById('lvF').value,to=document.getElementById('lvT').value,reason=document.getElementById('lvR').value.trim();
+  if(!from||!to||!reason){toast('Fill required fields','err');return;}
+  const r=await api.post('/api/leaves',{subjectId:document.getElementById('lvSub').value||null,fromDate:from,toDate:to,reason,document:docB64});
+  if(r.ok){closeModal('m1');const leaves=await api.get('/api/leaves');renderLeaves(leaves);toast('Leave request submitted successfully.','ok');}
+  else toast(r.error||'Failed','err');
+}
+boot();
+
+</script></body></html>

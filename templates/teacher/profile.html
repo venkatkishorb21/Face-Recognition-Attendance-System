@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>👤 My Profile — FaceAttend Pro</title><link rel="stylesheet" href="/static/css/style.css"/></head><body>
+<div class="wrap">
+<aside class="sidebar">
+  <div class="sb-logo"><div class="title">🎓 FaceAttend Pro</div><div class="sub">Teacher Portal</div>
+    <div class="user">{{ name }}</div><div class="role-badge">👨‍🏫 Teacher</div></div>
+  <div class="nav-sec">Main</div>
+  <a class="nav-link " href="/teacher/dashboard"><span class="nav-icon">🏠</span>Dashboard</a>
+  <a class="nav-link " href="/teacher/sessions"><span class="nav-icon">▶</span>Start Session</a>
+  <a class="nav-link " href="/teacher/attendance"><span class="nav-icon">📋</span>Attendance</a>
+  <a class="nav-link " href="/teacher/students"><span class="nav-icon">👥</span>My Students</a>
+  <div class="nav-sec">Requests</div>
+  <a class="nav-link " href="/teacher/leaves"><span class="nav-icon">🏖</span>Leave Requests</a>
+  <a class="nav-link " href="/teacher/corrections"><span class="nav-icon">✏</span>Corrections</a>
+  <a class="nav-link " href="/teacher/logs"><span class="nav-icon">📝</span>Edit Logs</a>
+  <a class="nav-link " href="/teacher/reports"><span class="nav-icon">📊</span>Reports</a>
+  <div class="nav-sec">Account</div>
+  <a class="nav-link active" href="/teacher/profile"><span class="nav-icon">👤</span>My Profile</a>
+  <div class="sb-footer"><a class="logout-btn" href="/logout">🚪 Logout</a></div>
+</aside>
+<main class="content">
+<div class="topbar"><div class="topbar-title">👤 My Profile</div>
+  <div id="topExtra" class="ml-auto flex gap-8"></div>
+  <button class="bell-btn" onclick="openNotifModal()" style="margin-left:8px">🔔<span class="notif-dot" id="notifDot" style="display:none">0</span></button>
+</div>
+<div id="mainArea"><div class="empty"><div class="empty-icon">⏳</div><p>Loading…</p></div></div>
+</main></div>
+<div class="modal-bg" id="m1" onclick="bgClose(event,'m1')"><div class="modal"><div class="modal-hdr"><h3 id="mTitle"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m1')">✕</button></div><div id="mBody"></div></div></div>
+<div class="modal-bg" id="m2" onclick="bgClose(event,'m2')"><div class="modal" style="max-width:680px"><div class="modal-hdr"><h3 id="mTitle2"></h3><button class="btn btn-ghost btn-sm" onclick="closeModal('m2')">✕</button></div><div id="mBody2" style="max-height:60vh;overflow-y:auto"></div></div></div>
+<div class="modal-bg" id="notifModal" onclick="bgClose(event,'notifModal')">
+  <div class="modal"><div class="modal-hdr"><h3>🔔 Notifications</h3>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="api.post('/api/notifications/read-all',{}).then(()=>openNotifModal())">Read all</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notifModal')">✕</button></div></div>
+    <div id="notifList"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/shared.js"></script>
+<script>
+const UID='{{ tid if tid is defined else sid if sid is defined else "" }}';
+async function openNotifModal(){await renderNotifModal(UID);openModal('notifModal');}
+
+async function boot(){
+  const me=await api.get('/api/me');
+  document.getElementById('mainArea').innerHTML=`<div style="max-width:520px">
+    <div class="card mb-14">
+      <div class="flex gap-14 mb-16">
+        <div style="width:72px;height:72px;border-radius:50%;background:var(--accl);border:3px solid var(--acc);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:var(--acc)">${me.name?me.name[0]:'?'}</div>
+        <div><div style="font-size:18px;font-weight:800">${esc(me.name||'')}</div><div style="font-size:13px;color:var(--mut)">${esc(me.email||'')}</div><div style="font-size:12px;color:var(--mut)">${esc(me.department||'')} · ${esc(me.qualification||'')}</div><span class="badge b-info mt-6">👨‍🏫 Teacher</span></div>
+      </div>
+      <div class="form-group"><label>Full Name</label><input id="pN" value="${esc(me.name||'')}"/></div>
+      <div class="form-group"><label>Phone</label><input id="pPh" value="${esc(me.phone||'')}"/></div>
+      <div class="form-group"><label>Department</label><input id="pD" value="${esc(me.department||'')}"/></div>
+      <div class="form-group"><label>Qualification</label><input id="pQ" value="${esc(me.qualification||'')}"/></div>
+    </div>
+    <div class="card mb-14">
+      <div class="card-title">🔐 Change Password</div>
+      <div class="form-group"><label>Current Password</label><input id="cP" type="password" placeholder="Current password"/></div>
+      <div class="form-group"><label>New Password</label><input id="nP" type="password" placeholder="New password"/></div>
+    </div>
+    <button class="btn btn-primary w100" onclick="saveP()">💾 Save Profile</button>
+  </div>`;
+}
+async function saveP(){
+  const d={name:document.getElementById('pN').value,phone:document.getElementById('pPh').value,department:document.getElementById('pD').value,qualification:document.getElementById('pQ').value};
+  if(document.getElementById('nP').value){d.currentPassword=document.getElementById('cP').value;d.newPassword=document.getElementById('nP').value;}
+  const r=await api.put('/api/teacher/profile',d);
+  if(r.ok)toast('Profile updated!','ok');else toast(r.error||'Failed','err');
+}
+boot();
+
+</script></body></html>
